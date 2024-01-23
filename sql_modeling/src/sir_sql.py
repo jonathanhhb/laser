@@ -6,6 +6,9 @@ import numpy as np # not for modeling
 import pdb
 import sys
 import os
+import heapq
+from tqdm import tqdm
+from functools import partial
 
 # We'll fix this settings stuff up soon.
 from settings import * # local file
@@ -13,13 +16,15 @@ import settings
 
 import report
 
-settings.base_infectivity = 0.0005
+settings.base_infectivity = 0.0001 # 0.0005
 
 # Globals! (not really)
 conn = sql.connect(":memory:")  # Use in-memory database for simplicity
 cursor = conn.cursor() # db-specific
 # use cursor as model data context; cf dataframe for polars/pandas
 #conn = sqlite3.connect("simulation.db")  # Great for inspecting; presumably a bit slower
+task_sorter = []
+unique_task_id = 0
 
 def get_node_ids():
     import numpy as np
@@ -70,6 +75,8 @@ def init_db_from_csv():
     settings.num_nodes = len(settings.nodes)
     settings.pop = cursor.execute( "SELECT COUNT(*) FROM agents" ).fetchall()[0][0]
     print( f"Loaded population file with {settings.pop} agents across {settings.num_nodes} nodes." )
+
+    create_queued_tasks_ria_init( cursor )
     return cursor
 
 def eula( cursor, age_threshold_yrs = 5, eula_strategy=None ):
@@ -128,8 +135,11 @@ def initialize_database( conn=None, from_file=True ):
     #agents_data = [(i, random.randint(0, num_nodes-1), random.randint(0, 100), False, 0, 0, False, 0) for i in range(1, pop)]
     node_assignments = get_node_ids()
 
-    agents_data = [(node_assignments[i], random.randint(0, 100)+random.randint(0,365)/365.0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(pop)]
-    cursor.executemany('INSERT INTO agents VALUES (null, ?, ?, ?, ?, ?, ?, ?, ?)', agents_data)
+    #agents_data = [(node_assignments[i], random.randint(0, 100)+random.randint(0,365)/365.0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(pop)]
+    agents_data = [(settings.pop + i, node_assignments[i], random.randint(0, 100)+random.randint(0,365)/365.0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(pop)]
+    settings.pop += pop
+    #cursor.executemany('INSERT INTO agents VALUES (null, ?, ?, ?, ?, ?, ?, ?, ?)', agents_data)
+    cursor.executemany('INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', agents_data)
 
     # Seed exactly 100 people to be infected in the first timestep
     # uniform distribution draws seem a bit clunky in SQLite. Just looking for values from 4 to 14. Ish.
@@ -138,6 +148,48 @@ def initialize_database( conn=None, from_file=True ):
     conn.commit()
 
     return cursor
+
+def do_due_tasks( ctx, timestep ):
+    # Pull tasks with the current timestep as priority
+    global task_sorter
+    current_tasks = [task for task in task_sorter if task[0] == timestep]
+
+    if current_tasks:
+        print(f'Timestep {timestep}: {len(current_tasks)} scheduled tasks.')
+
+        # Remove the pulled tasks from the priority queue
+        task_sorter = [task for task in task_sorter if task[0] != timestep]
+
+        for task in tqdm(current_tasks):
+            # 75% coverage
+            if random.random() < .75: 
+                task[2](cursor=ctx)
+
+    return ctx
+
+def schedule_9mo_ria( infant_id, infant_age, timestep=0 ):
+    return # disable feature for comp testing
+
+    global unique_task_id
+    unique_task_id += 1
+    query = f"UPDATE agents SET immunity=1, immunity_timer=-1 WHERE id={infant_id} and infected=0 and immunity=0"
+    def task_fn( cursor, query ):
+        cursor.execute( query )
+        print( f"{cursor.rowcount} rows updated in scheduled task." )
+    #howlong = 290-infant_age/365.
+    howlong = timestep + 290-infant_age/365.
+    task = (howlong, unique_task_id, partial( task_fn, query=query ))
+    #print( f"Queued up RIA task to be done at timestep {howlong} for agent {infant_id}" )
+    heapq.heappush(task_sorter, task)
+
+def create_queued_tasks_ria_init( cursor ):
+    """
+    At startup, go through individuals between 0 and 9mo and schedule their 9mo RI
+    """
+    cursor.execute( "SELECT id, age FROM agents WHERE age<(290/365.) and node=15" )
+    infants = cursor.fetchall()
+    for infant_id, infant_age in infants:
+        schedule_9mo_ria( infant_id, infant_age, timestep=0 )
 
 def collect_report( cursor ):
     #print( "Start report." ) # helps with visually sensing how long this takes.
@@ -168,7 +220,7 @@ def collect_report( cursor ):
     # print( "Stop report." ) # helps with visually sensing how long this takes.
     return infected_counts, susceptible_counts, recovered_counts 
 
-def update_ages( cursor ):
+def update_ages( cursor, timestep ):
     cursor.execute("UPDATE agents SET age = age+1/365.0")
     def births():
         # Births: Let's aim for 100 births per 1,000 woman of cba per year. So 
@@ -176,8 +228,16 @@ def update_ages( cursor ):
         wocba = cursor.execute( "SELECT node, COUNT(*)/2 FROM agents WHERE age>15 and age<45 GROUP BY node ORDER BY node").fetchall()
         wocba  = {values[0]: values[1] for idx, values in enumerate(wocba)}
         def add_newborns( node, babies ):
-            agents_data = [(node, 0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(babies)]
-            cursor.executemany('INSERT INTO agents VALUES (null, ?, ?, ?, ?, ?, ?, ?, ?)', agents_data)
+            #agents_data = [(node, 0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(babies)]
+            agents_data = [(int(settings.pop + i), node, 0, False, 0, 0, False, 0, get_rand_lifespan()) for i in range(babies)]
+            settings.pop += babies
+            cursor.executemany('INSERT INTO agents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', agents_data)
+
+            ## The following code is specific to doing pri-q RI
+            new_ids = cursor.execute( "SELECT id FROM agents WHERE age = 0 and node=15" ).fetchall()
+            for new_id in new_ids:
+                schedule_9mo_ria( new_id[0], 0, timestep=timestep )
+
             conn.commit()
 
         for node,count in wocba.items():
@@ -318,7 +378,7 @@ def migrate( cursor, timestep, **kwargs ): # ignore kwargs
                     FROM agents
                     WHERE infected=1 
                     ORDER BY RANDOM()
-                    LIMIT CAST( (SELECT COUNT(*) FROM agents WHERE infected=1 ) * 0.05 AS INTEGER)
+                    LIMIT CAST( (SELECT COUNT(*) FROM agents WHERE infected=1 ) * 0.025 AS INTEGER)
                 )
             ''', { 'max_node': settings.num_nodes-1 } )
     return cursor # for pattern
