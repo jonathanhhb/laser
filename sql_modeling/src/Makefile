@@ -1,21 +1,22 @@
 all: tlc.py
 
-pop_1M_seeded.csv: settings.py
+full_pop_seeded.csv: settings.py
 	python3 create_pop_as_csv.py
 
 update_ages.so: update_ages.c
 	gcc -O3 -march=native -flto -o update_ages.so -shared -fPIC update_ages.c
 
-tlc.py: pop_1M_seeded.csv update_ages.so
+tlc.py: modeled_pop.csv update_ages.so eula.db
 	python3 tlc.py
 
-age_gt_25.csv: pop_1M_seeded.csv
-	./eula_preproc.sh pop_1M_seeded.csv 25
+# 5 is hardcoded. Should really read from settings.
+modeled_pop.csv: full_pop_seeded.csv
+	./eula_preproc.sh full_pop_seeded.csv 5
 
-eula.db: age_gt_25.csv
-	python3 csv_to_db.py age_gt_25.csv
+eula.db: modeled_pop.csv
+	python3 csv_to_db.py eula_pop.csv
 
-run:
+run: # eula.db modeled_pop.csv
 	python3 tlc.py
 
 clean:

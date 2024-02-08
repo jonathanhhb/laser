@@ -3,8 +3,8 @@ import pdb
 #import sir_sql as model
 #import sir_mysql as model
 #import sir_sql_polars as model
-import sir_numpy as model
-#import sir_numpy_c as model
+#import sir_numpy as model
+import sir_numpy_c as model
 from copy import deepcopy
 
 import settings

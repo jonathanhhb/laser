@@ -370,7 +370,7 @@ void reconstitute(
             incubation_timer[i] = 0;
             immunity[i] = 0;
             immunity_timer[i] = 0;
-            expected_lifespan[i] = 75;
+            expected_lifespan[i] = 75; // this should be a distribution, not a constant
 
             counter ++;
             if( counter == num_new_babies ) {
