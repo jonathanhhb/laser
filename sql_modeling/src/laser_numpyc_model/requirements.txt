@@ -1,0 +1,5 @@
+numpy
+matplotlib
+sparklines
+pandas
+scipy
