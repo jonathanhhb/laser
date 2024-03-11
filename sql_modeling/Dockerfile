@@ -18,7 +18,6 @@ COPY src/sir_sql.py .
 COPY src/report.py .
 COPY src/update_ages.cpp .
 RUN g++ -shared -fPIC -O3 -march=native -flto -fpermissive update_ages.cpp -o update_ages.so
-COPY src/update_ages.so .
 COPY src/model_numpy/eula.py model_numpy/eula.py
 COPY src/model_sql/eula.py model_sql/eula.py
 RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/modeled_pop.csv.gz
