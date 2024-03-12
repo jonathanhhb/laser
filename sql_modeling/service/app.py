@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string, send_file
 import subprocess
+import plot_spatial
 
 app = Flask(__name__)
 
@@ -20,9 +21,9 @@ params = [
         'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
 },
 {
-        'name': 'simulation_duration_in_years',
+        'name': 'duration',
 	'default': "1",
-        'description': "Like it sounds"
+        'description': "Simulation duration in years."
 },
 {
         'name': 'base_infectivity',
@@ -134,8 +135,12 @@ FORM_TEMPLATE = """
       xhr.onload = function() {
         if (xhr.status === 200) {
           // If request is successful, display the returned image
-          var imageUrl = 'prevs.png'; // Replace with actual URL of returned image
-          document.getElementById('imageContainer').innerHTML = '<img src="' + imageUrl + '" alt="prevs">';
+          var timestamp = new Date().getTime(); // Generate a timestamp
+          var imageUrl = 'prevs.png?' + timestamp; // Append timestamp to image URL
+          document.getElementById('imageContainer').innerHTML = '<img src="' + imageUrl + '" alt="prevs">'; 
+        } else {
+          // If request is not successful, display an error message
+          document.getElementById('imageContainer').innerHTML = '<p>Error: Failed to load image.</p>';
         }
       };
       xhr.send(formData);
@@ -145,27 +150,46 @@ FORM_TEMPLATE = """
 </html>
 """
 
-def run_sim():
-    import sir_numpy_c as model
-    import settings
-    import report
-    from tlc import run_simulation
-    ctx = model.initialize_database()
-    ctx = model.eula_init( ctx, settings.eula_age )
-
-    csv_writer = report.init()
-
+def run_sim(): 
     # Run the simulation for 1000 timesteps
     try:
-        subprocess.run(['/usr/local/bin/python3', 'tlc.py'], check=True)
+        print( "Run sim" )
+        subprocess.run(['/usr/local/bin/python3', 'tlc.py'], check=True) 
     except subprocess.CalledProcessError as e:
         # Handle subprocess error (e.g., log the error, restart the subprocess)
         print(f"Subprocess error: {e}")
-    #from functools import partial
-    #runsim = partial( run_simulation, ctx=ctx, csvwriter=csv_writer, num_timesteps=settings.duration )
-    #runsim()
-    import plot_spatial
-    plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
+    print( "Returning from run_sim." )
+
+def update_settings( data ):
+    # Read the settings.py file
+    with open("settings.py", "r") as settings_file:
+        lines = settings_file.readlines()
+
+    # Parse each line and update the value if the key matches one of your variable names
+    for i, line in enumerate(lines):
+        # Split the line into key and value
+        try:
+            key, value = line.strip().split("=")
+            # Check if the key matches one of your variable names
+            # Can't find better way than this
+            if key.strip() in data:
+                print( f"Settings new value for {key}." )
+                value = data[key.strip()]
+                if key.strip() == "duration":
+                    value += "*365"
+                lines[i] = f"{key.strip()} = {value}\n" 
+        except Exception as ex:
+            print( str( ex ) )
+            print( line )
+            print( "Probably just a commment or blank line." )
+
+    #print( "Saving new settings.py file as: " )
+    #for line in lines:
+        #print( line )
+    # Write the updated key-value pairs back to the file
+    with open("settings.py", "w") as settings_file:
+        settings_file.writelines(lines)
+
 
 @app.route('/submit', methods=['GET', 'POST'])
 def submit():
@@ -173,12 +197,19 @@ def submit():
         # Process the submitted parameters
         data = request.form
         # Run your application logic here
-        base_infectivity = float(data['base_infectivity'])
-        cbr = int(data['cbr'])
-        years = int(data['duration'])
+        #base_infectivity = float(data['base_infectivity'])
+        #cbr = int(data['cbr'])
+        #years = int(data['duration'])
+
+        # Let's update settings.py with these values and re-save
+        update_settings( data )
+        print( "For some reason, when we call update_settings, nothing else seems to happen..." )
+
         #return 'Data received: {}'.format(data)
         run_sim()
-        #return f'Sim ran'
+        plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
+        
+        print( "Sim completed. Returning output plot URL." )
         return {'url': '/prevs.png'}
     else:
         # Return the API documentation
@@ -196,7 +227,7 @@ def index():
     return form_html
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, use_reloader=False, host='0.0.0.0')
 """
     {% for param, desc in params.items() %}
       <label for="{{ param }}">{{ param }}:</label>
