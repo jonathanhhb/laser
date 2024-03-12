@@ -20,7 +20,7 @@ params = [
         'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
 },
 {
-        'name': 'simulation duration in years',
+        'name': 'simulation_duration_in_years',
 	'default': "1",
         'description': "Like it sounds"
 },
@@ -104,75 +104,9 @@ FORM_TEMPLATE = """
 
   <!-- JavaScript to handle form submission and image display -->
   <script>
-    // Define the params list of dictionaries
-    var params = [
-{
-	'name': "pop",
-	'default': "int(1e7)+1",
-        'description': "Total human population (not agents)"
-},
-{
-        'name': 'num_nodes',
-	'default': "60",
-        'description': "Number of nodes/populations"
-},
-{
-        'name': 'eula_age',
-	'default': "5",
-        'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
-},
-{
-        'name': 'simulation duration in years',
-	'default': "1",
-        'description': "Like it sounds"
-},
-{
-        'name': 'base_infectivity',
-	'default': "1.5e7",
-        'description': "Proxy for R0"
-},
-{
-        'name': 'cbr',
-	'default': "15",
-        'description': "Crude Birth Rate (same for all nodes)"
-},
-{
-        'name': 'campaign_day',
-	'default': "60",
-        'description': "Day at which one-time demo campaign occurs"
-},
-{
-        'name': 'campaign_coverage',
-	'default': "0.75",
-        'description': "Coverage to use for demo campaign"
-},
-{
-        'name': 'campaign_node',
-	'default': "15",
-        'description': "Node to target with demo campaign"
-},
-{
-        'name': 'migration_interval',
-	'default': "7",
-        'description': "Timesteps to wait being doing demo migration"
-},
-{
-        'name': 'mortality_interval',
-	'default': "7",
-        'description': "Timesteps between applying non-disease mortality."
-},
-{
-        'name': 'fertility_interval',
-	'default': "7",
-        'description': "Timesteps between adding new babies."
-},
-{
-        'name': 'ria_interval',
-	'default': "7",
-        'description': "Timesteps between applying routine immunization of 9-month-olds."
-}
-    ];
+    var params = {{ params|tojson }};
 
+    // Define the params list of dictionaries 
     // Function to create text entry fields based on params list
     function createFormFields() {
       var formFieldsHtml = '';
@@ -209,7 +143,7 @@ FORM_TEMPLATE = """
   </script>
 </body>
 </html>
-""" 
+"""
 
 def run_sim():
     import sir_numpy_c as model
@@ -241,6 +175,7 @@ def submit():
         # Run your application logic here
         base_infectivity = float(data['base_infectivity'])
         cbr = int(data['cbr'])
+        years = int(data['duration'])
         #return 'Data received: {}'.format(data)
         run_sim()
         #return f'Sim ran'
