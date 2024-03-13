@@ -91,8 +91,13 @@ FORM_TEMPLATE = """
 <html>
 <head>
   <title>Web Service Form</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='spinner.css') }}">
 </head>
 <body>
+  <div id="overlay"></div>
+  <div id="spinnerContainer">
+    <div class="loading-spinner"></div>
+  </div>
   <h1>Submit Parameters</h1>
   <form id="myForm" method="POST" action="/submit">
     <!-- Dynamically generate form fields -->
@@ -132,8 +137,19 @@ FORM_TEMPLATE = """
       // Send form data using AJAX
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/submit', true);
+
+      // Display loading overlay and spinner before sending the request
+      var overlay = document.getElementById('overlay');
+      var spinner = document.getElementById('spinnerContainer');
+      overlay.style.display = 'block';
+      spinner.style.display = 'block';
+
       xhr.onload = function() {
         if (xhr.status === 200) {
+          // Remove spinner
+          overlay.style.display = 'none';
+          spinner.style.display = 'none';
+          
           // If request is successful, display the returned image
           var timestamp = new Date().getTime(); // Generate a timestamp
           var imageUrl = 'prevs.png?' + timestamp; // Append timestamp to image URL

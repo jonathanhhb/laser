@@ -9,6 +9,8 @@ RUN apt install -y wget
 RUN apt install -y g++
 
 COPY service/. .
+RUN mkdir static
+RUN mv spinner.css static/
 
 COPY src/settings.py .
 COPY src/tlc.py .
