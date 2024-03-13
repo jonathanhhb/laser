@@ -1,4 +1,6 @@
 import pandas as pd
+import importlib
+importlib.reload(pd)
 import matplotlib.pyplot as plt
 
 def load_and_plot( csv_file ):
