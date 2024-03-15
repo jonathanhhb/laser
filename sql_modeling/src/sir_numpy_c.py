@@ -4,6 +4,7 @@ import numpy as np
 import concurrent.futures
 from functools import partial
 import ctypes
+import gzip
 import pdb
 
 import settings
@@ -149,14 +150,15 @@ def load( pop_file ):
     """
     Load population from csv file as np arrays. Each property column is an np array.
     """
-    # Load the entire CSV file into a NumPy array
-    header_row = np.genfromtxt(pop_file, delimiter=',', dtype=str, max_rows=1)
+    with gzip.open( pop_file ) as fp:
+        # Load the entire CSV file into a NumPy array
+        header_row = np.genfromtxt(fp, delimiter=',', dtype=str, max_rows=1)
 
-    # Load the remaining data as numerical values, skipping the header row
-    data = np.genfromtxt(pop_file, delimiter=',', dtype=float, skip_header=1)
+        # Load the remaining data as numerical values, skipping the header row
+        data = np.genfromtxt(fp, delimiter=',', dtype=float, skip_header=1)
 
-    # Extract headers from the header row
-    headers = header_row
+        # Extract headers from the header row
+        headers = header_row
 
     settings.pop = len(data) # -unborn_end_idx 
     print( f"Population={settings.pop}" )
@@ -448,8 +450,7 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
         #queues_np()
 
     #print( f"new_infections at node {node} = {new_infections[node]}" )
-    if new_infections[node]>0:
-        handle_new_infections_c(new_infections[node])
+    handle_new_infections_c(new_infections[node])
 
     #print( f"{new_infections} new infections in node {node}." )
     return data
@@ -458,8 +459,10 @@ def handle_transmission( data_in, new_infections_in, timestep ):
     # We want to do this in parallel;
     #print( f"DEBUG: New Infections: {new_infections_in}" )
     htbn = partial( handle_transmission_by_node, data_in, new_infections_in, timestep )
+    relevant_nodes = [ node_id for node_id in settings.nodes if new_infections_in[ node_id ] > 0 ]
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = list(executor.map(htbn, settings.nodes))
+        results = list(executor.map(htbn, relevant_nodes))
+    
     return data_in
 
 def add_new_infections( data ):
