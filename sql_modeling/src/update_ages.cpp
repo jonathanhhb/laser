@@ -99,8 +99,8 @@ size_t progress_infections(
     int* recovered_idxs
 ) {
     unsigned int activators = 0;
+    unsigned recovered_counter = 0;
 
-    std::deque<int> recovereds;
     for (int i = start_idx; i < n; ++i) {
         if (infected[i] ) {
             // Incubation timer: decrement for each person
@@ -127,17 +127,12 @@ size_t progress_infections(
                     // Make immunity permanent for now; we'll want this configurable at some point
                     immunity_timer[i] = -1;
                     immunity[i] = 1;
-                    recovereds.push_back( i );
+                    recovered_idxs[ recovered_counter++ ] = i;
                 }
             }
         }
     }
-    //printf( "%d activators, %d recovereds.\n", activators, recovereds );
-    if( recovereds.size() > 0 ) {
-        //printf( "Returning %lu recovered indexes; first one is %d.\n", recovereds.size(), recovereds[0] );
-        std::copy(recovereds.begin(), recovereds.end(), recovered_idxs);
-    }
-    return recovereds.size();
+    return recovered_counter;
 }
 
 void progress_immunities(int n, int start_idx, unsigned char * immunity_timer, bool* immunity, int* node) {
