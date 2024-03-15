@@ -54,7 +54,7 @@ void progress_infections2(
     unsigned char * infection_timer,
     unsigned char * incubation_timer,
     bool* infected,
-    unsigned char * immunity_timer,
+    signed char * immunity_timer,
     bool* immunity,
     int timestep
 )
@@ -93,7 +93,7 @@ size_t progress_infections(
     unsigned char * infection_timer,
     unsigned char * incubation_timer,
     bool* infected,
-    unsigned char * immunity_timer,
+    signed char * immunity_timer,
     bool* immunity,
     int* node,
     int* recovered_idxs
@@ -357,7 +357,7 @@ unsigned int campaign(
     float coverage,
     int campaign_node,
     bool *immunity,
-    unsigned char  *immunity_timer,
+    signed char  *immunity_timer,
     float *age,
     int *node
 )
@@ -391,7 +391,7 @@ unsigned int ria(
     float coverage,
     int campaign_node,
     bool *immunity,
-    unsigned char  *immunity_timer,
+    signed char  *immunity_timer,
     float *age,
     int *node
 )
@@ -446,7 +446,7 @@ void reconstitute(
     bool *infected,
     unsigned char  *incubation_timer,
     bool *immunity,
-    unsigned char  *immunity_timer,
+    signed char  *immunity_timer,
     float *expected_lifespan,
     int* new_ids_out
 ) {

@@ -41,7 +41,7 @@ update_ages_lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
@@ -52,14 +52,14 @@ update_ages_lib.progress_infections2.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     ctypes.c_size_t,  # timestep
 ]
 update_ages_lib.progress_immunities.argtypes = [
     ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
 ]
@@ -114,7 +114,7 @@ update_ages_lib.campaign.argtypes = [
     ctypes.c_float, # coverage
     ctypes.c_int32, # campaign_node
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node
 ]
@@ -124,7 +124,7 @@ update_ages_lib.ria.argtypes = [
     ctypes.c_float, # coverage
     ctypes.c_int32, # campaign_node
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node
 ]
@@ -138,7 +138,7 @@ update_ages_lib.reconstitute.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # expected_lifespan
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new_ids returned
 ]
@@ -178,7 +178,7 @@ def load( pop_file ):
     data['node'] = np.concatenate( [ unborn['node'], data['node'] ] ).astype(np.uint32)
     data['infection_timer'] = np.concatenate( [ unborn['infection_timer'], data['infection_timer'] ] ).astype(np.uint8)
     data['incubation_timer'] = np.concatenate( [ unborn['incubation_timer'], data['incubation_timer'] ] ).astype(np.uint8)
-    data['immunity_timer'] = np.concatenate( [ unborn['immunity_timer'], data['immunity_timer'] ] ).astype(np.uint8)
+    data['immunity_timer'] = np.concatenate( [ unborn['immunity_timer'], data['immunity_timer'] ] ).astype(np.int8)
     data['age'] = np.concatenate( [ unborn['age'], data['age'] ] ).astype(np.float32)
     data['expected_lifespan'] = np.concatenate( [ unborn['expected_lifespan'], data['expected_lifespan'] ] ).astype(np.float32)
 
