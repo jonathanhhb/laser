@@ -38,10 +38,10 @@ update_ages_lib.progress_infections.restype = ctypes.c_int
 update_ages_lib.progress_infections.argtypes = [
     ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # infection_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
@@ -49,17 +49,17 @@ update_ages_lib.progress_infections.argtypes = [
 update_ages_lib.progress_infections2.argtypes = [
     ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # infection_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     ctypes.c_size_t,  # timestep
 ]
 update_ages_lib.progress_immunities.argtypes = [
     ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
 ]
@@ -68,10 +68,10 @@ update_ages_lib.calculate_new_infections.argtypes = [
     ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # nodes
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # inf_counts
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # sus_counts
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # tot_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # tot_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
 ]
@@ -82,8 +82,8 @@ update_ages_lib.handle_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # infection_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
     ctypes.c_int, # num_new_infections
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     ctypes.c_size_t,  # timestep
@@ -114,7 +114,7 @@ update_ages_lib.campaign.argtypes = [
     ctypes.c_float, # coverage
     ctypes.c_int32, # campaign_node
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node
 ]
@@ -124,7 +124,7 @@ update_ages_lib.ria.argtypes = [
     ctypes.c_float, # coverage
     ctypes.c_int32, # campaign_node
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node
 ]
@@ -136,9 +136,9 @@ update_ages_lib.reconstitute.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node array
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
     np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # immunity_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # expected_lifespan
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new_ids returned
 ]
@@ -176,9 +176,9 @@ def load( pop_file ):
     data['infected'] = np.concatenate( ( unborn['infected'], data['infected'] ) ).astype(bool)
     data['immunity'] = np.concatenate( ( unborn['immunity'], data['immunity'] ) ).astype(bool)
     data['node'] = np.concatenate( [ unborn['node'], data['node'] ] ).astype(np.uint32)
-    data['infection_timer'] = np.concatenate( [ unborn['infection_timer'], data['infection_timer'] ] ).astype(np.float32)
-    data['incubation_timer'] = np.concatenate( [ unborn['incubation_timer'], data['incubation_timer'] ] ).astype(np.float32)
-    data['immunity_timer'] = np.concatenate( [ unborn['immunity_timer'], data['immunity_timer'] ] ).astype(np.float32)
+    data['infection_timer'] = np.concatenate( [ unborn['infection_timer'], data['infection_timer'] ] ).astype(np.uint8)
+    data['incubation_timer'] = np.concatenate( [ unborn['incubation_timer'], data['incubation_timer'] ] ).astype(np.uint8)
+    data['immunity_timer'] = np.concatenate( [ unborn['immunity_timer'], data['immunity_timer'] ] ).astype(np.uint8)
     data['age'] = np.concatenate( [ unborn['age'], data['age'] ] ).astype(np.float32)
     data['expected_lifespan'] = np.concatenate( [ unborn['expected_lifespan'], data['expected_lifespan'] ] ).astype(np.float32)
 
@@ -332,14 +332,14 @@ def update_ages( data, totals, timestep ):
     #print( f"Returning {birth_report}, and {death_report}" )
     return ( birth_report, death_report )
 
-def progress_infections( data, timestep ):
+def progress_infections( data, timestep, num_infected ):
     # Update infected agents
     # infection timer: decrement for each infected person
     def vector_math():
         # Call the function with a null pointer
         #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
-        recovered_idxs = np.zeros( np.count_nonzero( data['infected'] ) ).astype( np.uint32 )
+        recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
         num_recovereds = update_ages_lib.progress_infections(len(data['age']), unborn_end_idx, data['infection_timer'], data['incubation_timer'], data['infected'], data['immunity_timer'], data['immunity'], data['node'], recovered_idxs ) # ctypes.byref(integers_ptr))
         if num_recovereds:
             for rec_idx in range( num_recovereds ):
@@ -394,16 +394,18 @@ def progress_immunities( data ):
     return data
 
 def calculate_new_infections( data, inf, sus, totals ):
+    # Are inf and sus fractions or totals? fractions
     new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
     sorted_items = sorted(inf.items())
     inf_np = np.array([np.float32(value) for _, value in sorted_items])
     #print( f"inf_np = {inf_np}." )
     sus_np = np.array([np.float32(value) for value in sus.values()])
-    tot_np = np.array([np.float32(value) for value in totals.values()])
+    tot_np = np.array([np.uint32(value) for value in totals.values()])
     def dump():
         import pandas as pd
         df = pd.DataFrame(data)
         df.to_csv('temp.csv', index=False)
+
     update_ages_lib.calculate_new_infections(
             unborn_end_idx,
             dynamic_eula_idx,
@@ -451,7 +453,6 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
 
     #print( f"new_infections at node {node} = {new_infections[node]}" )
     handle_new_infections_c(new_infections[node])
-
     #print( f"{new_infections} new infections in node {node}." )
     return data
 

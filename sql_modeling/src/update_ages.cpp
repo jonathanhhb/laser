@@ -25,7 +25,7 @@ void init_maps(
     size_t n,
     int start_idx,
     const bool * infected,
-    const float * infection_timer
+    unsigned char * infection_timer
 ) {
     for (int i = start_idx; i < n; ++i) {
         if( infected[ i ] ) {
@@ -51,10 +51,10 @@ void update_ages(unsigned int start_idx, unsigned int stop_idx, float *ages) {
 void progress_infections2(
     int n,
     int start_idx,
-    float* infection_timer,
-    float* incubation_timer,
+    unsigned char * infection_timer,
+    unsigned char * incubation_timer,
     bool* infected,
-    float* immunity_timer,
+    unsigned char * immunity_timer,
     bool* immunity,
     int timestep
 )
@@ -90,10 +90,10 @@ void progress_infections2(
 size_t progress_infections(
     int n,
     int start_idx,
-    float* infection_timer,
-    float* incubation_timer,
+    unsigned char * infection_timer,
+    unsigned char * incubation_timer,
     bool* infected,
-    float* immunity_timer,
+    unsigned char * immunity_timer,
     bool* immunity,
     int* node,
     int* recovered_idxs
@@ -140,7 +140,7 @@ size_t progress_infections(
     return recovereds.size();
 }
 
-void progress_immunities(int n, int start_idx, float* immunity_timer, bool* immunity, int* node) {
+void progress_immunities(int n, int start_idx, unsigned char * immunity_timer, bool* immunity, int* node) {
     for (int i = start_idx; i < n; ++i) {
         if( immunity[i] && immunity_timer[i] > 0 )
         {
@@ -160,10 +160,10 @@ void calculate_new_infections(
     int end_idx,
     int num_nodes,
     uint32_t * node,
-    float * incubation_timer,
-    float * infection_counts,
-    float * sus,
-    float * totals,
+    unsigned char  * incubation_timer,
+    float * infection_counts, // actually fractions
+    float * sus, // also fractions
+    uint32_t * totals,
     uint32_t * new_infs_out,
     float base_inf
 ) {
@@ -204,8 +204,8 @@ void handle_new_infections(
     uint32_t * agent_node,
     bool * infected,
     bool * immunity,
-    float * incubation_timer,
-    float * infection_timer,
+    unsigned char  * incubation_timer,
+    unsigned char  * infection_timer,
     int new_infections,
     int * new_infection_idxs_out,
     int timestep
@@ -362,7 +362,7 @@ unsigned int campaign(
     float coverage,
     int campaign_node,
     bool *immunity,
-    float *immunity_timer,
+    unsigned char  *immunity_timer,
     float *age,
     int *node
 )
@@ -396,7 +396,7 @@ unsigned int ria(
     float coverage,
     int campaign_node,
     bool *immunity,
-    float *immunity_timer,
+    unsigned char  *immunity_timer,
     float *age,
     int *node
 )
@@ -426,7 +426,7 @@ unsigned int ria(
 
         if( node[i] == campaign_node &&
             immunity[i] == false &&
-            rand()%100 < 100*coverage
+            rand()%100 < 0.75*coverage
         )
         {
             //printf( "Changing value of immunity at index %d.\n", i );
@@ -449,9 +449,9 @@ void reconstitute(
     int *node,
     float *age,
     bool *infected,
-    float *incubation_timer,
+    unsigned char  *incubation_timer,
     bool *immunity,
-    float *immunity_timer,
+    unsigned char  *immunity_timer,
     float *expected_lifespan,
     int* new_ids_out
 ) {
