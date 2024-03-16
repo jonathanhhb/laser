@@ -186,6 +186,7 @@ void calculate_new_infections(
         infection_counts[ i ] -= exposed_counts_by_bin[ i ];
         //printf( "infection_counts[%d] = %f\n", i, infection_counts[i] );
         float foi = infection_counts[ i ] * base_inf;
+        assert( foi >= 0 );
         //printf( "foi[%d] = %f\n", i, foi );
         new_infs_out[ i ] = (int)( foi * sus[ i ] );
         //printf( "new infs[%d] = foi(%f) * sus(%f) = %d.\n", i, foi, sus[i], new_infs_out[i] );
@@ -216,7 +217,7 @@ void handle_new_infections(
     for (int i = start_idx; i <= end_idx; i++) {
         subquery_condition[i-start_idx] = !infected[i] && !immunity[i] && agent_node[i] == node;
     }
-    
+
     // Initialize random number generator
     //srand(time(NULL)); // TBD: this should just be done once. But I don't really have an "init" function yet.
     
@@ -327,7 +328,7 @@ void collect_report(
 )
 {
     //printf( "%s called w/ num_agents = %d, start_idx = %d, eula_idx = %d.\n", __FUNCTION__, num_agents, start_idx, eula_idx );
-    for (int i = start_idx; i < eula_idx; ++i) {
+    for (int i = start_idx; i <= eula_idx; ++i) {
         if( node[i] < 0 ) {
             continue;
         }
