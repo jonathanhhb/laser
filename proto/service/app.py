@@ -5,70 +5,45 @@ app = Flask(__name__)
 
 params = [
 {
-	'name': "pop",
-	'default': "int(1e7)+1",
-        'description': "Total human population (not agents)"
-},
-{
-        'name': 'num_nodes',
-	'default': "60",
+        'name': 'nodes',
+	'default': "32",
         'description': "Number of nodes/populations"
 },
 {
-        'name': 'eula_age',
-	'default': "5",
-        'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
-},
-{
         'name': 'ticks',
-	'default': "1",
+	'default': "10",
         'description': "Simulation duration in years."
 },
 {
-        'name': 'base_infectivity',
-	'default': "1.5e7",
-        'description': "Proxy for R0"
+        'name': 'exp_mean',
+	'default': "4",
+        'description': "exp_mean?"
+},
+{ 
+        'name': 'exp_std',
+	'default': "1",
+        'description': "exp_std?"
+},
+{ 
+        'name': 'inf_mean',
+	'default': "5",
+        'description': "infectiousness mean?"
 },
 {
-        'name': 'cbr',
-	'default': "15",
-        'description': "Crude Birth Rate (same for all nodes)"
+        'name': 'inf_std',
+	'default': "1",
+        'description': "infectiousness standard deviation"
 },
 {
-        'name': 'campaign_day',
-	'default': "60",
-        'description': "Day at which one-time demo campaign occurs"
+        'name': 'r_naught',
+	'default': "2.5",
+        'description': "Reproductive number"
 },
 {
-        'name': 'campaign_coverage',
-	'default': "0.75",
-        'description': "Coverage to use for demo campaign"
-},
-{
-        'name': 'campaign_node',
-	'default': "15",
-        'description': "Node to target with demo campaign"
-},
-{
-        'name': 'migration_interval',
-	'default': "7",
-        'description': "Timesteps to wait being doing demo migration"
-},
-{
-        'name': 'mortality_interval',
-	'default': "7",
-        'description': "Timesteps between applying non-disease mortality."
-},
-{
-        'name': 'fertility_interval',
-	'default': "7",
-        'description': "Timesteps between adding new babies."
-},
-{
-        'name': 'ria_interval',
-	'default': "7",
-        'description': "Timesteps between applying routine immunization of 9-month-olds."
-},
+        'name': 'seed',
+	'default': "20240227",
+        'description': "Random number seed"
+}, 
 ]
 
 
@@ -165,11 +140,13 @@ FORM_TEMPLATE = """
 </html>
 """
 
-def run_sim( ticks ): 
+def run_sim( params_array ): 
     # Run the simulation for 1000 timesteps
     try:
         print( "Run sim" )
-        subprocess.run(['/usr/local/bin/python3', 'engwal.py', '--ticks', f'{ticks}'], check=True) 
+        app_cmd = ['/usr/local/bin/python3', 'engwal.py' ]
+        app_cmd.extend( params_array )
+        subprocess.run( app_cmd, check=True) 
     except subprocess.CalledProcessError as e:
         # Handle subprocess error (e.g., log the error, restart the subprocess)
         print(f"Subprocess error: {e}")
@@ -184,13 +161,24 @@ def submit():
         #base_infectivity = float(data['base_infectivity'])
         #cbr = int(data['cbr'])
         ticks = int(data['ticks'])
-        # TBD: Parse settings and run.
+        def get_params( data ):
+            result_array = []
 
-        # Let's update settings.py with these values and re-save 
+            # Iterate over the keys of the dictionary
+            for key in data:
+                result_array.append( '--' + key )
 
-        #return 'Data received: {}'.format(data)
-        run_sim( ticks )
-        #plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
+                # Retrieve the associated values
+                values = str(data[key])
+                result_array.append( values )
+                
+            print( f"result_array = {result_array}." )
+            return result_array
+        # Parse settings and run.
+        params_array = get_params( data )
+
+        print( f"run_sim called with {params_array}" )
+        run_sim( params_array ) 
         
         print( "Sim completed. Returning output plot URL." )
         return {'url': '/inf.png'}
