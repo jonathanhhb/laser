@@ -1,17 +1,13 @@
-FROM tiangolo/uwsgi-nginx:python3.9
+FROM python:3.9
 
-# Create a directory for your application code
 WORKDIR /app
 
-# Copy your application code into the container
-COPY . /app
-
 RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/measles_ew_animation.html 
-RUN mkdir -p /var/www/html
-RUN mv measles_ew_animation.html /var/www/html/index.html 
+RUN mv measles_ew_animation.html /app/index.html 
 
-# Set permissions on the necessary directories
-USER root
-RUN chmod 777 /etc/nginx/
-USER nginx
+# Expose port 80
+EXPOSE 80
+
+# Run a Python HTTP server to serve the HTML file
+CMD ["python", "-m", "http.server", "80"]
 
