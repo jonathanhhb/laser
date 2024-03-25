@@ -6,6 +6,7 @@ from functools import partial
 import ctypes
 import gzip
 import pdb
+import time
 
 import settings
 import report
@@ -17,8 +18,13 @@ from collections import defaultdict
 unborn_end_idx = 0
 dynamic_eula_idx = None
 ninemo_tracker_idx = None
+inf_sus_idx = None
 infection_queue_map = defaultdict(list)
 incubation_queue_map = defaultdict(list)
+recovereds = 0
+infecteds = 0
+s_to_i_swap_time = 0
+i_to_r_swap_time = 0
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -36,8 +42,8 @@ update_ages_lib.init_maps.argtypes = [
 ]
 update_ages_lib.progress_infections.restype = ctypes.c_int
 update_ages_lib.progress_infections.argtypes = [
-    ctypes.c_size_t,  # n
     ctypes.c_size_t,  # starting index
+    ctypes.c_size_t,  # ending index
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
@@ -127,20 +133,15 @@ update_ages_lib.ria.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'), # immunity_timer
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # vaccinated indices
+    
 ]
 update_ages_lib.reconstitute.argtypes = [
-    ctypes.c_int32, # num_agents
     ctypes.c_int32, # num_new_babies
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new_nodes
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # node array
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # age
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'), # immunity_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # expected_lifespan
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new_ids returned
 ]
 
 def do_due_tasks( ctx, timestep ):
@@ -182,13 +183,20 @@ def load( pop_file ):
     data['age'] = np.concatenate( [ unborn['age'], data['age'] ] ).astype(np.float32)
     data['expected_lifespan'] = np.concatenate( [ unborn['expected_lifespan'], data['expected_lifespan'] ] ).astype(np.float32)
 
+    def clear_init_prev():
+        data['incubation_timer'] = np.zeros( len( data['incubation_timer'] ) ).astype( np.uint8 )
+        data['infection_timer'] = np.zeros( len( data['incubation_timer'] ) ).astype( np.uint8 )
+        data['infected'] = np.zeros( len( data['incubation_timer'] ) ).astype( bool )
+    clear_init_prev()
+
     settings.nodes = [ node for node in np.unique(data['node']) ]
     settings.nodes.pop(-1)
     settings.num_nodes = len(settings.nodes)
     print( f"Nodes={settings.num_nodes}" )
-    global dynamic_eula_idx, ninemo_tracker_idx 
+    global dynamic_eula_idx, ninemo_tracker_idx, inf_sus_idx
     dynamic_eula_idx = len(data['id'])-1
     ninemo_tracker_idx = dynamic_eula_idx 
+    inf_sus_idx = dynamic_eula_idx 
 
     def init_maps_np():
         global infection_queue_map, incubation_queue_map
@@ -218,6 +226,12 @@ def eula_init( df, age_threshold_yrs = 5, eula_strategy=None ):
 
 def swap_to_dynamic_eula( data, individual_idx ):
     global dynamic_eula_idx 
+    global s_to_i_swap_time
+    start_time = time.time()
+    """
+    if individual_idx > dynamic_eula_idx:
+        raise ValueError( f"It should not be possible for the individual idx {individual_idx} to be already in the eula region {dynamic_eula_idx}." )
+    """
     #print( f"swapping newly recovered individual at {individual_idx} with dynamic eula idx {dynamic_eula_idx}." )
     #individual_idx = np.where( data['id'] == individual_id  )
     #print( f"EULA: idx={dynamic_eula_idx}" )
@@ -232,6 +246,45 @@ def swap_to_dynamic_eula( data, individual_idx ):
         # Write temp values to current
         data[ col ][ individual_idx ] = elem
     dynamic_eula_idx -= 1
+    global recovereds
+    recovereds += 1
+    #print( f"recovereds = {recovereds}" )
+    """
+    if recovereds > infecteds:
+        raise ValueError( f"ERROR: How do we have more recovereds {recovereds} than infecteds {infecteds}." )
+    global inf_sus_idx
+    if dynamic_eula_idx < inf_sus_idx:
+        raise ValueError( f"dynamic_eula_idx ({dynamic_eula_idx}) should never be less than inf_sus_idx ({inf_sus_idx})." )
+    #print( f"dynamic_eula_idx decremented to {dynamic_eula_idx}" )
+    """
+    s_to_i_swap_time += time.time() - start_time
+
+def swap_to_dynamic_si( data, individual_idx ):
+    global infecteds
+    global inf_sus_idx
+    start_time = time.time()
+    infecteds += 1
+    
+    #print( f"swapping newly infected individual at {individual_idx} with s_i idx {inf_sus_idx}." )
+    if individual_idx > inf_sus_idx:
+        raise ValueError( f"It should not be possible for the newly infected individual idx {individual_idx} to be already in the infected region (or greater) {inf_sus_idx}." )
+        pdb.set_trace()
+    # will consolidate with above
+    for col in data.keys():
+        # Store eula-1 values in temp
+        elem = data[ col ][ inf_sus_idx ]
+        #print( f"EULA: {col}={elem}" )
+        #print( f"CUR: {col}={data[ col ][ individual_idx ]}" )
+        # Write newly recovered values to eula-1
+        data[ col ][ inf_sus_idx ] = data[ col ][ individual_idx ]
+        # Write temp values to current
+        data[ col ][ individual_idx ] = elem
+
+    inf_sus_idx -= 1
+    #print( f"infecteds = {infecteds}" )
+    #print( f"inf_sus_idx decremented to {inf_sus_idx}" )
+    global i_to_r_swap_time 
+    i_to_r_swap_time += time.time() - start_time
 
 def collect_report( data ):
     """
@@ -254,14 +307,23 @@ def collect_report( data ):
             susceptible_counts_raw,
             recovered_counts_raw
     )
-
+    #print( f"infected_counts_raw = {infected_counts_raw}" )
     susceptible_counts = dict(zip(settings.nodes, susceptible_counts_raw))
     infected_counts = dict(zip(settings.nodes, infected_counts_raw))
     recovered_counts = dict(zip(settings.nodes, recovered_counts_raw))
     #print( f"Reporting back SIR counts of\n{susceptible_counts},\n{infected_counts}, and\n{recovered_counts}." )
-    recovered_counts_eula = eula.get_recovereds_by_node()
-    for key, count in recovered_counts_eula.items():
+    """
+    for key, count in recovered_counts_modeled.items():
+        print( f"VERBOSE: Adding {count} recovereds at node {key}." )
         recovered_counts[key] += count
+    """
+
+    recovered_counts_eula = eula.get_recovereds_by_node()
+    for node in eula.eula_dict:
+        if node not in recovered_counts:
+            recovered_counts[ node ] = 0
+        recovered_counts[ node ] += recovered_counts_eula[node]
+
     return infected_counts, susceptible_counts, recovered_counts
     
 
@@ -288,22 +350,15 @@ def update_ages( data, totals, timestep ):
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
         tot_new_babies = sum(num_new_babies_by_node.values())
-        new_ids_out = np.zeros(tot_new_babies).astype( np.uint32 )
         global unborn_end_idx
-        update_ages_lib.reconstitute(
-            len(data['age'] ),
-            unborn_end_idx, 
-            len(result_array),
-            result_array,
-            data['node'],
-            data['age'],
-            data['infected'],
-            data['incubation_timer'],
-            data['immunity'],
-            data['immunity_timer'],
-            data['expected_lifespan'],
-            new_ids_out 
-        )
+        if tot_new_babies > 0 :
+            update_ages_lib.reconstitute(
+                unborn_end_idx, 
+                len(result_array),
+                result_array,
+                data['node'],
+                data['age']
+            )
         """
         # TBD: Schedule 9mo RIA for newborns; Need their ids.
         import sir_numpy
@@ -313,9 +368,12 @@ def update_ages( data, totals, timestep ):
         births_report = defaultdict(int)
         for node, babies in num_new_babies_by_node.items():
             if babies > 0:
+                if node not in births_report:
+                    births_report[node] = 0
                 births_report[node] += babies
 
-        unborn_end_idx -= len( new_ids_out )
+        unborn_end_idx -= tot_new_babies # len( new_ids_out )
+        #print( f"unborn_end_idx = {unborn_end_idx}" )
         return births_report
 
     def deaths( data, timestep_delta ):
@@ -339,11 +397,24 @@ def progress_infections( data, timestep, num_infected ):
         # Call the function with a null pointer
         #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
+        #pdb.set_trace()
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
-        num_recovereds = update_ages_lib.progress_infections(len(data['age']), unborn_end_idx, data['infection_timer'], data['incubation_timer'], data['infected'], data['immunity_timer'], data['immunity'], data['node'], recovered_idxs ) # ctypes.byref(integers_ptr))
-        if num_recovereds:
-            for rec_idx in range( num_recovereds ):
-                recovered = recovered_idxs[rec_idx]
+        global dynamic_eula_idx, inf_sus_idx
+        # infecteds should all be from inf_sus_idx (E/I) to dynamic_eula_idx (R)
+        num_recovereds = update_ages_lib.progress_infections(
+            inf_sus_idx,
+            dynamic_eula_idx,
+            data['infection_timer'],
+            data['incubation_timer'],
+            data['infected'],
+            data['immunity_timer'],
+            data['immunity'],
+            data['node'],
+            recovered_idxs
+        ) # ctypes.byref(integers_ptr))
+        for rec_idx in range( num_recovereds ):
+            recovered = recovered_idxs[rec_idx]
+            if recovered > 0:
                 if recovered < dynamic_eula_idx: # only swap if dynamic eula idx is greater than recovered idx. This was a bug I took a while to find. eula idx can cross the index while in queue
                     swap_to_dynamic_eula( data, recovered )
 
@@ -407,7 +478,7 @@ def calculate_new_infections( data, inf, sus, totals ):
         df.to_csv('temp.csv', index=False)
 
     update_ages_lib.calculate_new_infections(
-            unborn_end_idx,
+            inf_sus_idx, # unborn_end_idx,
             dynamic_eula_idx,
             len( inf ),
             data['node'],
@@ -427,7 +498,7 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
         new_infection_idxs = np.zeros(new_infections).astype( np.uint32 )
         update_ages_lib.handle_new_infections(
                 unborn_end_idx,
-                dynamic_eula_idx,
+                inf_sus_idx, # dynamic_eula_idx,
                 node,
                 data['node'],
                 data['infected'],
@@ -438,6 +509,10 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
                 new_infection_idxs,
                 timestep
             )
+        # Swap new_infection_idxs from S to S/I idx boundary.
+        #for idx in sorted(new_infection_idxs,reverse=True):
+            #swap_to_dynamic_si( data, idx )
+
         #print( f"New Infection indexes = {new_infection_idxs} in node {node} at {timestep}." )
         #print( f"New Infection ids = {data['id'][new_infection_idxs]}." )
         def queues_np():
@@ -449,12 +524,13 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
                 infection_queue_map[ reco_time ].append( idx )
             incubation_queue_map[ timestep+3 ].extend( new_infection_idxs )
 
+        return new_infection_idxs
         #queues_np()
 
     #print( f"new_infections at node {node} = {new_infections[node]}" )
-    handle_new_infections_c(new_infections[node])
+    niis = handle_new_infections_c(new_infections[node])
     #print( f"{new_infections} new infections in node {node}." )
-    return data
+    return niis # data
 
 def handle_transmission( data_in, new_infections_in, timestep ):
     # We want to do this in parallel;
@@ -463,6 +539,14 @@ def handle_transmission( data_in, new_infections_in, timestep ):
     relevant_nodes = [ node_id for node_id in settings.nodes if new_infections_in[ node_id ] > 0 ]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, relevant_nodes))
+    # Segregate S from I: Swap new I's out of S group into I group
+    if len( results ) > 0:
+        all_new_idxs = []
+        for result in results:
+            all_new_idxs.extend( result )
+        for idx in sorted(all_new_idxs,reverse=True):
+            if idx > 0:
+                swap_to_dynamic_si( data_in, idx )
     
     return data_in
 
@@ -485,8 +569,8 @@ def distribute_interventions( data, timestep ):
     #return sir_numpy.distribute_interventions( ctx, timestep )
     def ria_9mo( coverage ):
         global ninemo_tracker_idx 
+        vaxxed_idxs = np.zeros( ninemo_tracker_idx - unborn_end_idx ).astype( np.uint32 )
         new_idx = update_ages_lib.ria(
-                #len(data['age']),
                 unborn_end_idx,
                 ninemo_tracker_idx,
                 coverage,
@@ -494,9 +578,15 @@ def distribute_interventions( data, timestep ):
                 data['immunity'],
                 data['immunity_timer'],
                 data['age'],
-                data['node']
+                data['node'],
+                vaxxed_idxs
             )
         ninemo_tracker_idx = int(new_idx)
+        idx = 0
+        while vaxxed_idxs[ idx ] > 0:
+            print( "Swapping previously S to R after RIA vax." )
+            swap_to_dynamic_eula( data, vaxxed_idxs[ idx ] )
+            idx += 1
 
     def campaign( coverage ):
         vaxxed = update_ages_lib.campaign(
@@ -512,14 +602,16 @@ def distribute_interventions( data, timestep ):
         print( f"{vaxxed} individuals vaccinated in node {settings.campaign_node}." )
     if timestep == settings.campaign_day:
         campaign(settings.campaign_coverage)
-    if timestep & settings.ria_interval == 0:
+    if timestep % settings.ria_interval == 0:
         ria_9mo( settings.campaign_coverage )
     return data
 
 def inject_cases( ctx, timestep, import_cases=100, import_node=settings.num_nodes-1 ):
     import_dict = { import_node: import_cases }
-    htbn = partial( handle_transmission_by_node, ctx, import_dict, timestep=timestep, node=59 )
-    htbn()
+    htbn = partial( handle_transmission_by_node, ctx, import_dict, timestep=timestep, node=import_node )
+    new_idxs = htbn()
+    for idx in sorted(new_idxs,reverse=True):
+        swap_to_dynamic_si( ctx, idx )
 
 # Function to run the simulation for a given number of timesteps
 def run_simulation(data, csvwriter, num_timesteps):

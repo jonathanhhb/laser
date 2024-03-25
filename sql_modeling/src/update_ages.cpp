@@ -88,21 +88,22 @@ void progress_infections2(
  * Assume recovered_idxs is pre-allocated to same size as infecteds.
  */
 size_t progress_infections(
-    int n,
     int start_idx,
+    int end_idx,
     unsigned char * infection_timer,
     unsigned char * incubation_timer,
     bool* infected,
     signed char * immunity_timer,
     bool* immunity,
     int* node,
-    int* recovered_idxs
+    uint32_t * recovered_idxs
 ) {
     unsigned int activators = 0;
     unsigned recovered_counter = 0;
+    //printf( "progress_infections: traversing from idx %d to %d.\n", start_idx, end_idx );
 
-    for (int i = start_idx; i < n; ++i) {
-        if (infected[i] ) {
+    for (int i = start_idx; i <= end_idx; ++i) {
+        if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
             // Incubation timer: decrement for each person
             if (incubation_timer[i] >= 1) {
                 incubation_timer[i] --;
@@ -166,6 +167,8 @@ void calculate_new_infections(
     float exposed_counts_by_bin[ num_nodes ];
     memset( exposed_counts_by_bin, 0, sizeof(exposed_counts_by_bin) );
 
+    // We are not yet counting E in our regular report, so we have to count them here.
+    // Is that 'expensive'? Not sure yet.
     for (int i = start_idx; i <= end_idx; ++i) {
         if( incubation_timer[i] >= 1 ) {
             exposed_counts_by_bin[ node[ i ] ] ++;
@@ -177,12 +180,12 @@ void calculate_new_infections(
     for (int i = 0; i < num_nodes; ++i) {
         //printf( "exposed_counts_by_bin[%d] = %f.\n", i, exposed_counts_by_bin[i] );
         exposed_counts_by_bin[ i ] /= totals[ i ];
-        /*if( exposed_counts_by_bin[ i ] > infection_counts[ i ] )
+        if( exposed_counts_by_bin[ i ] > infection_counts[ i ] )
         {
             printf( "Exposed should never be > infection.\n" );
             printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infection_counts[ i ]*totals[i] );
             abort();
-        }*/
+        }
         infection_counts[ i ] -= exposed_counts_by_bin[ i ];
         //printf( "infection_counts[%d] = %f\n", i, infection_counts[i] );
         float foi = infection_counts[ i ] * base_inf;
@@ -264,7 +267,8 @@ void handle_new_infections(
             //assert( selected_id <= end_idx );
             infected[selected_id] = true;
             incubation_timer[selected_id] = 3; 
-            infection_timer[selected_id] = rand() % (10) + 7; // Random integer between 4 and 14;
+            infection_timer[selected_id] = rand() % (10) + 4; // Random integer between 4 and 14;
+            //printf( "Initialized infection timer to %d.\n", infection_timer[selected_id] );
             new_infection_idxs_out[ i ] = selected_id;
 
             /*
@@ -307,7 +311,7 @@ void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint3
             }
             else
             {
-                node[ i ] = 59; // this should be param
+                node[ i ] = 953; // this should be param
             }
         }
     }
@@ -394,7 +398,8 @@ unsigned int ria(
     bool *immunity,
     signed char  *immunity_timer,
     float *age,
-    int *node
+    int *node,
+    int *immunized_indices
 )
 {
     // We have in mind a vaccination campaign to a fraction of the population turning 9mo, in a particular node, at
@@ -406,6 +411,7 @@ unsigned int ria(
     unsigned int new_idx = start_idx;
     //printf( "%s called with start_idx=%d, counting down to %d.\n", __FUNCTION__, start_idx, num_agents );
     for (int i = start_idx; i > num_agents; --i) {
+        printf( "age = %f.\n", age[i] );
         // keep decrementing until we get kids younger than 0.75
         if( age[i] < 0.75 ) {
             //printf( "age of individual at idx %d = %f. Cutting out of loop.\n", i, age[i] );
@@ -417,6 +423,7 @@ unsigned int ria(
                                           // without vaxxing them all. But then later we want to be able to grab
                                           // everyone who aged into 9months while we were away and vax them. Tricky.
         if( age[i] > upper_bound ) {
+            //printf( "Too old. Keep counting down to find '9-month-olds'.\n" );
             continue; // keep counting down
         }
 
@@ -425,10 +432,14 @@ unsigned int ria(
             rand()%100 < 0.75*coverage
         )
         {
-            //printf( "Changing value of immunity at index %d.\n", i );
+            printf( "Changing value of immunity at index %d.\n", i );
             immunity[i] = true;
             immunity_timer[i] = -1;
-            report_counter ++;
+            immunized_indices[ report_counter ++ ] = i;
+        }
+        else
+        {
+            printf( "Didn't match immunity and coverage filter.\n" );
         }
     }
     /*if( report_counter > 0 ) {
@@ -438,34 +449,30 @@ unsigned int ria(
 }
 
 void reconstitute(
-    int num_agents,
     int start_idx,
     int num_new_babies,
     int* new_nodes,
     int *node,
-    float *age,
-    bool *infected,
-    unsigned char  *incubation_timer,
-    bool *immunity,
-    signed char  *immunity_timer,
-    float *expected_lifespan,
-    int* new_ids_out
+    float *age
 ) {
     //printf( "%s: num_new_babies = %d\n", __FUNCTION__, num_new_babies );
     int counter = 0;
     for (int i = start_idx; i > 0; --i) {
         if( age[i] < 0 ) {
             node[i] = new_nodes[ counter ];
-            new_ids_out[counter] = i;
+            age[i] = 0;
             counter ++;
             if( counter == num_new_babies ) {
                 return;
             }
         }
+        else {
+            printf( "ERROR: Next U wasn't the right age for some reason!.\n" );
+        }
     }
     printf( "ERROR: We ran out of open slots for new babies!" );
     abort();
-    }
+}
 
 double random_double() {
     return (double) rand() / RAND_MAX;
