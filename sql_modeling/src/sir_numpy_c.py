@@ -353,7 +353,7 @@ def update_ages( data, totals, timestep ):
         global unborn_end_idx
         if tot_new_babies > 0 :
             update_ages_lib.reconstitute(
-                unborn_end_idx, 
+                unborn_end_idx-1, 
                 len(result_array),
                 result_array,
                 data['node'],
@@ -373,7 +373,7 @@ def update_ages( data, totals, timestep ):
                 births_report[node] += babies
 
         unborn_end_idx -= tot_new_babies # len( new_ids_out )
-        #print( f"unborn_end_idx = {unborn_end_idx}" )
+        #print( f"unborn_end_idx = {unborn_end_idx} after {tot_new_babies} new babies." )
         return births_report
 
     def deaths( data, timestep_delta ):
