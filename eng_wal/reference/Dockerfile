@@ -2,7 +2,8 @@ FROM python:3.9
 
 WORKDIR /app
 
-RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/measles_ew_animation.html 
+RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/measles_ew_animation.html.gz
+RUN gunzip measles_ew_animation.html.gz
 RUN mv measles_ew_animation.html /app/index.html 
 
 # Expose port 80
