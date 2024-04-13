@@ -13,7 +13,8 @@ locations = [(51.5074 + random.uniform(-0.1, 0.1), -0.1278 + random.uniform(-0.1
 # Normalize the data between 0 and 1
 #data = (data - np.min(data)) / (np.max(data) - np.min(data))
 data = []
-pdb.set_trace()
+data.append( [ [ location[0], location[1], 0 ] for location in locations  ] )
+
 for t in range(365):
     data.append( [ [ location[0], location[1], random.random() ] for location in locations  ] )
 
