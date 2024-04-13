@@ -51,8 +51,14 @@ def add_expansion_slots( columns, num_slots=settings.expansion_slots ):
     new_nodes = np.ones( num_slots, dtype=np.uint32 )*-1
     new_ages = np.ones( num_slots, dtype=np.float32 )*-1
     new_infected = np.zeros( num_slots, dtype=bool )
-    new_immunity = np.zeros( num_slots, dtype=bool )
-    new_immunity_timer = np.zeros( num_slots ).astype( np.float32 )
+
+    #new_immunity = np.zeros( num_slots, dtype=bool )
+    ew_immunity_timer = np.zeros( num_slots ).astype( np.float32 )
+
+    # maternal immunity: not working right?!?!
+    new_immunity = np.ones( num_slots, dtype=bool ) # not stable
+    new_immunity_timer = np.ones( num_slots ).astype( np.float32 )*120 # stable
+
     new_infection_timer = np.zeros( num_slots ).astype( np.float32 )
     new_incubation_timer = np.zeros( num_slots ).astype( np.float32 )
     import sir_sql
