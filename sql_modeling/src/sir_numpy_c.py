@@ -25,6 +25,7 @@ recovereds = 0
 infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
+attraction_probs = None
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -215,6 +216,18 @@ def load( pop_file ):
     #init_maps_np()
     #init_maps_c()
     # Now 'columns' is a dictionary where keys are column headers and values are NumPy arrays
+
+    def load_attraction_probs():
+        probabilities = []
+        with open(settings.attraction_probs_file, newline='') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                probabilities.append([float(prob) for prob in row])
+            return np.array(probabilities)
+        return probabilities
+
+    global attraction_probs 
+    attraction_probs = load_attraction_probs()
     return data
 
 def initialize_database():
@@ -397,7 +410,6 @@ def progress_infections( data, timestep, num_infected ):
         # Call the function with a null pointer
         #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
-        #pdb.set_trace()
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
         global dynamic_eula_idx, inf_sus_idx
         # infecteds should all be from inf_sus_idx (E/I) to dynamic_eula_idx (R)
@@ -461,10 +473,10 @@ def progress_infections( data, timestep, num_infected ):
 
 # Update immune agents
 def progress_immunities( data ):
-    update_ages_lib.progress_immunities(len(data['age']), unborn_end_idx, data['immunity_timer'], data['immunity'], data['node'])
+    update_ages_lib.progress_immunities(unborn_end_idx, dynamic_eula_idx, data['immunity_timer'], data['immunity'], data['node'])
     return data
 
-def calculate_new_infections( data, inf, sus, totals ):
+def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
     # Are inf and sus fractions or totals? fractions
     new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
     sorted_items = sorted(inf.items())
@@ -477,6 +489,11 @@ def calculate_new_infections( data, inf, sus, totals ):
         df = pd.DataFrame(data)
         df.to_csv('temp.csv', index=False)
 
+    sm = kwargs.get('seasonal_multiplier', settings.seasonal_multiplier)
+    inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
+    bi = kwargs.get('base_infectivity', settings.base_infectivity)
+
+    #print( f"inf_multiplier = {inf_multiplier}" )
     update_ages_lib.calculate_new_infections(
             inf_sus_idx, # unborn_end_idx,
             dynamic_eula_idx,
@@ -487,7 +504,7 @@ def calculate_new_infections( data, inf, sus, totals ):
             sus_np,
             tot_np,
             new_infections,
-            settings.base_infectivity
+            bi * inf_multiplier
         )
     #print( f"new_infections = {new_infections}." )
     return new_infections 
@@ -539,6 +556,11 @@ def handle_transmission( data_in, new_infections_in, timestep ):
     relevant_nodes = [ node_id for node_id in settings.nodes if new_infections_in[ node_id ] > 0 ]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, relevant_nodes))
+    """
+    results = []
+    for node in relevant_nodes:
+        results.append( htbn( node=node ) )
+    """
     # Segregate S from I: Swap new I's out of S group into I group
     if len( results ) > 0:
         all_new_idxs = []
@@ -553,15 +575,57 @@ def handle_transmission( data_in, new_infections_in, timestep ):
 def add_new_infections( data ):
     return data
 
-def migrate( data, timestep, num_infected=None ):
+def migrate( data, timestep, **kwargs ):
     # Migrate 1% of infecteds "downstream" every week; coz
     if timestep % settings.migration_interval == 0: # every week
-        update_ages_lib.migrate(
-            len(data['age']),
-            unborn_end_idx,
-            dynamic_eula_idx,
-            data['infected'],
-            data['node'])
+        def select_destination(source_index, random_draw):
+            return np.argmax(attraction_probs[source_index] > random_draw)
+
+        """
+        Code from demo for inspiration:
+        source_location = random.randint(0,940)
+        random_draw = np.random.rand()  # Random number between 0 and 1
+        destination_location = select_destination(source_location, random_draw)
+        city = all_cities[ destination_location ]
+        """
+        #print( "Starting migration..." )
+        # Let's migrate 1% of infected agents.
+        # Select indices where 'infected' is True
+        infected_indices = np.where(data['infected'] == True)[0]
+
+        # Calculate the number of individuals to select (1% of the total infected individuals)
+        #num_to_select = int(len(infected_indices) * 0.01)
+        mf = kwargs.get('migration_fraction', settings.migration_fraction)
+        num_to_select = int(len(infected_indices) * mf)
+
+        if num_to_select > 0:
+            # Randomly select 1% of infected individuals
+            selected_indices = np.random.choice(infected_indices, size=num_to_select, replace=False)
+
+            # Get the selected individuals from the original data
+            #selected_individuals = data[selected_indices]
+
+            # Collect the source nodes in a list.
+            source_nodes = data['node'][selected_indices]
+
+            dest_nodes = []
+            # Calculate destination nodes with looped calls to select_destination
+            for src_node in source_nodes:
+                random_draw = np.random.rand()  # Random number between 0 and 1
+                destination_location = select_destination(src_node, random_draw)
+                dest_nodes.append( destination_location )
+            data['node'][selected_indices] = np.array(dest_nodes)
+
+        # Pass source ids and destinations to function?
+            """
+            update_ages_lib.migrate(
+                len(data['age']),
+                unborn_end_idx,
+                dynamic_eula_idx,
+                data['infected'],
+                data['node'])
+            """
+        #print( "Ending migration..." )
     return data
 
 def distribute_interventions( data, timestep ):
