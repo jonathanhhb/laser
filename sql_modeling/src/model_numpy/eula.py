@@ -13,7 +13,7 @@ update_ages_lib.progress_natural_mortality_binned.argtypes = [
     ctypes.c_size_t,  # timesteps_elapsed
 ]
 
-eula = defaultdict(lambda: defaultdict(int))
+eula_dict = defaultdict(lambda: defaultdict(int))
 
 # Define Gompertz-Makeham parameters
 makeham_parameter = 0.01
@@ -38,7 +38,7 @@ def count_by_node_and_age( nodes, ages ):
     return counts
 
 def init():
-    global eula
+    global eula_dict
     """
     header_row = np.genfromtxt(settings.eula_file, delimiter=',', dtype=str, max_rows=1)
 
@@ -56,8 +56,8 @@ def init():
     for node in range(settings.num_nodes):
         m, b = fits[node]
         pop = calculate_y(0, m, b)
-        print( f"Setting pop for node {node} to {pop}." )
-        eula[node][44] = pop
+        # print( f"Setting pop for node {node} to {pop}." )
+        eula_dict[node][44] = pop
     
 
 def progress_natural_mortality( timesteps ):
@@ -73,13 +73,13 @@ def progress_natural_mortality( timesteps ):
                 pdb.set_trace()
 
         return_deaths = defaultdict(int)
-        for node in eula:
+        for node in eula_dict:
             expected_deaths = np.zeros(102-settings.eula_age).astype(np.int32)
 
             counts = np.zeros(102-settings.eula_age)
 
             # Update the array with the count values from the dictionary
-            for key, value in eula[node].items():
+            for key, value in eula_dict[node].items():
                 index = key - settings.eula_age  # Calculate the index based on the key
                 counts[index] = int(value)
 
@@ -92,7 +92,7 @@ def progress_natural_mortality( timesteps ):
                     raise ValueError( f"number of age bins in count={len(count)}, but number of age bins in prob={len(prob)} for node {node}." )
                 expected_deaths += np.random.binomial(counts, prob)
             for age in eula[node]:
-                eula[node][age] -= expected_deaths[age-settings.eula_age] # round(count * (1-))
+                eula_dict[node][age] -= expected_deaths[age-settings.eula_age] # round(count * (1-))
             return_deaths[node] = sum(expected_deaths)
 
         """
@@ -113,9 +113,9 @@ def progress_natural_mortality( timesteps ):
         """
         return return_deaths
     def c():
-        rows = len(eula)
-        cols = len(next(iter(eula.values())))
-        array = [[eula[row][col] for col in range(cols)] for row in range(rows)]
+        rows = len(eula_dict)
+        cols = len(next(iter(eula_dict.values())))
+        array = [[eula_dict[row][col] for col in range(cols)] for row in range(rows)]
 
         # Convert 2D array to a flat array
         flat_array = np.array([elem for sublist in array for elem in sublist]).astype( np.int32 )
@@ -134,13 +134,13 @@ def progress_natural_mortality( timesteps ):
         for node in range(settings.num_nodes):
             m, b = fits[node]
             pop = calculate_y(timestep_abs, m, b)
-            eula[node][44] = pop
+            eula_dict[node][44] = pop
 
     from_lut()
     #python()
 
 def get_recovereds_by_node():   
     summary = {}
-    for node in eula:
-        summary[ node ] = sum( eula[node].values() )
+    for node in eula_dict:
+        summary[ node ] = sum( eula_dict[node].values() )
     return summary

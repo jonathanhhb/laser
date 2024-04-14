@@ -1,15 +1,17 @@
 import csv
 import numpy as np
 from sparklines import sparklines
+import pdb
 import settings
 
 write_report = True
+new_infections = np.zeros(len(settings.nodes), dtype=np.uint32)
 
 def init():
     # Create a CSV file for reporting
     csvfile = open( settings.report_filename, 'w', newline='') 
     csvwriter = csv.writer(csvfile)
-    csvwriter.writerow(['Timestep', 'Node', 'Susceptible', 'Infected', 'Recovered', 'Births', 'Deaths'])
+    csvwriter.writerow(['Timestep', 'Node', 'Susceptible', 'Infected', 'New Infections', 'Recovered', 'Births', 'Deaths'])
     return csvwriter
 
 def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_counts, recovered_counts, new_births, new_deaths ):
@@ -19,7 +21,7 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
     totals = np.array([total[key] for key in sorted(total.keys(), reverse=True)])
     prev = infecteds/totals
     print( f"T={timestep}" )
-    print( list( sparklines( prev ) ) )
+    #print( list( sparklines( prev ) ) )
     # Write the counts to the CSV file
     #print( f"T={timestep},\nS={susceptible_counts},\nI={infected_counts},\nR={recovered_counts}" )
     if write_report:
@@ -28,6 +30,8 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
                 node,
                 susceptible_counts[node] if node in susceptible_counts else 0,
                 infected_counts[node] if node in infected_counts else 0,
+                new_infections[node],
+                #ni_map[node] if node in new_infections else 0,
                 recovered_counts[node] if node in recovered_counts else 0,
                 new_births[node] if node in new_births else 0,
                 new_deaths[node] if node in new_deaths else 0,

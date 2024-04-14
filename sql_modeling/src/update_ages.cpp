@@ -12,6 +12,7 @@
 #include <mutex>
 #include <algorithm>
 #include <cassert>
+#include <math.h>
 
 
 const float one_day = 1.0f/365.0f;
@@ -25,7 +26,7 @@ void init_maps(
     size_t n,
     int start_idx,
     const bool * infected,
-    const float * infection_timer
+    unsigned char * infection_timer
 ) {
     for (int i = start_idx; i < n; ++i) {
         if( infected[ i ] ) {
@@ -51,10 +52,10 @@ void update_ages(unsigned int start_idx, unsigned int stop_idx, float *ages) {
 void progress_infections2(
     int n,
     int start_idx,
-    float* infection_timer,
-    float* incubation_timer,
+    unsigned char * infection_timer,
+    unsigned char * incubation_timer,
     bool* infected,
-    float* immunity_timer,
+    signed char * immunity_timer,
     bool* immunity,
     int timestep
 )
@@ -88,21 +89,22 @@ void progress_infections2(
  * Assume recovered_idxs is pre-allocated to same size as infecteds.
  */
 size_t progress_infections(
-    int n,
     int start_idx,
-    float* infection_timer,
-    float* incubation_timer,
+    int end_idx,
+    unsigned char * infection_timer,
+    unsigned char * incubation_timer,
     bool* infected,
-    float* immunity_timer,
+    signed char * immunity_timer,
     bool* immunity,
     int* node,
-    int* recovered_idxs
+    uint32_t * recovered_idxs
 ) {
     unsigned int activators = 0;
+    unsigned recovered_counter = 0;
+    //printf( "progress_infections: traversing from idx %d to %d.\n", start_idx, end_idx );
 
-    std::deque<int> recovereds;
-    for (int i = start_idx; i < n; ++i) {
-        if (infected[i] ) {
+    for (int i = start_idx; i <= end_idx; ++i) {
+        if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
             // Incubation timer: decrement for each person
             if (incubation_timer[i] >= 1) {
                 incubation_timer[i] --;
@@ -126,32 +128,59 @@ size_t progress_infections(
                     //immunity_timer[i] = rand() % (30) + 10;  // Random integer between 10 and 40
                     // Make immunity permanent for now; we'll want this configurable at some point
                     immunity_timer[i] = -1;
-                    immunity[i] = 1;
-                    recovereds.push_back( i );
+                    immunity[i] = true;
+                    //printf( "Recovery.\n" );
+                    recovered_idxs[ recovered_counter++ ] = i;
                 }
             }
         }
     }
-    //printf( "%d activators, %d recovereds.\n", activators, recovereds );
-    if( recovereds.size() > 0 ) {
-        //printf( "Returning %lu recovered indexes; first one is %d.\n", recovereds.size(), recovereds[0] );
-        std::copy(recovereds.begin(), recovereds.end(), recovered_idxs);
-    }
-    return recovereds.size();
+    return recovered_counter;
 }
 
-void progress_immunities(int n, int start_idx, float* immunity_timer, bool* immunity, int* node) {
-    for (int i = start_idx; i < n; ++i) {
+void progress_immunities(
+    int start_idx,
+    int end_idx,
+    signed char * immunity_timer,
+    bool* immunity,
+    int* node
+) {
+    for (int i = start_idx; i <= end_idx; ++i) {
         if( immunity[i] && immunity_timer[i] > 0 )
         {
             immunity_timer[i]--;
             if( immunity_timer[i] == 0 )
             {
                 immunity[i] = false;
+                //printf( "New Susceptible.\n" );
             }
         }    
     }
 }
+
+float logistic_density_fn(float x) {
+    float L = 4.5; // Maximum value
+    float x0 = 250000.0; // Midpoint
+    float k = 0.0001; // Steepness parameter
+    float ret = 0.5 + (L / (1.0 + exp(-k * (x - x0))));
+    //printf( "ccs multiplier = %f.\n", ret );
+    return ret;
+}
+
+// Function to generate a random number of new infections
+int generate_new_infections(int N, double P) {
+    // Generate a random number of new infections from a binomial distribution
+    int new_infections = 0;
+    for (int i = 0; i < N; i++) {
+        double rand_num = (double)rand() / RAND_MAX;  // Generate a random number between 0 and 1
+        if (rand_num < P) {  // Probability of infection
+            new_infections++;
+        }
+    }
+    //printf( "generate_new_infections returning %d for num sus = %d and prob = %f.\n", new_infections, N, P );
+    return new_infections;
+}
+
 
 // Dang, this one is slower than the numpy version!?!?
 // maybe I need to just use the 64-bit ints and avoid the casting
@@ -160,10 +189,10 @@ void calculate_new_infections(
     int end_idx,
     int num_nodes,
     uint32_t * node,
-    float * incubation_timer,
-    float * infection_counts,
-    float * sus,
-    float * totals,
+    unsigned char  * incubation_timer,
+    float * infection_counts, // actually fractions
+    float * sus, // also fractions
+    uint32_t * totals,
     uint32_t * new_infs_out,
     float base_inf
 ) {
@@ -171,6 +200,8 @@ void calculate_new_infections(
     float exposed_counts_by_bin[ num_nodes ];
     memset( exposed_counts_by_bin, 0, sizeof(exposed_counts_by_bin) );
 
+    // We are not yet counting E in our regular report, so we have to count them here.
+    // Is that 'expensive'? Not sure yet.
     for (int i = start_idx; i <= end_idx; ++i) {
         if( incubation_timer[i] >= 1 ) {
             exposed_counts_by_bin[ node[ i ] ] ++;
@@ -182,17 +213,24 @@ void calculate_new_infections(
     for (int i = 0; i < num_nodes; ++i) {
         //printf( "exposed_counts_by_bin[%d] = %f.\n", i, exposed_counts_by_bin[i] );
         exposed_counts_by_bin[ i ] /= totals[ i ];
-        /*if( exposed_counts_by_bin[ i ] > infection_counts[ i ] )
+        if( exposed_counts_by_bin[ i ] > infection_counts[ i ] )
         {
             printf( "Exposed should never be > infection.\n" );
             printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infection_counts[ i ]*totals[i] );
-            abort();
-        }*/
+            exposed_counts_by_bin[ i ] = infection_counts[ i ]; // HACK: Maybe an exposed count is dead?
+            //abort();
+        }
         infection_counts[ i ] -= exposed_counts_by_bin[ i ];
         //printf( "infection_counts[%d] = %f\n", i, infection_counts[i] );
         float foi = infection_counts[ i ] * base_inf;
+        //assert( foi >= 0 );
         //printf( "foi[%d] = %f\n", i, foi );
-        new_infs_out[ i ] = (int)( foi * sus[ i ] );
+        // We have to have a pop density factor if we're going to have CCS phenom otherwise absolute population total is 
+        // divided out of all the math.
+        //float density_factor = logistic_density_fn( totals[ i ] );
+        //new_infs_out[ i ] = (int)( foi * sus[ i ] * density_factor );
+        //new_infs_out[ i ] = (int)( foi * sus[ i ] );
+        new_infs_out[ i ] = generate_new_infections( sus[ i ]*totals[i], foi );
         //printf( "new infs[%d] = foi(%f) * sus(%f) = %d.\n", i, foi, sus[i], new_infs_out[i] );
     }
 }
@@ -204,8 +242,8 @@ void handle_new_infections(
     uint32_t * agent_node,
     bool * infected,
     bool * immunity,
-    float * incubation_timer,
-    float * infection_timer,
+    unsigned char  * incubation_timer,
+    unsigned char  * infection_timer,
     int new_infections,
     int * new_infection_idxs_out,
     int timestep
@@ -221,7 +259,7 @@ void handle_new_infections(
     for (int i = start_idx; i <= end_idx; i++) {
         subquery_condition[i-start_idx] = !infected[i] && !immunity[i] && agent_node[i] == node;
     }
-    
+
     // Initialize random number generator
     //srand(time(NULL)); // TBD: this should just be done once. But I don't really have an "init" function yet.
     
@@ -267,8 +305,11 @@ void handle_new_infections(
             //assert( selected_id >= start_idx );
             //assert( selected_id <= end_idx );
             infected[selected_id] = true;
-            incubation_timer[selected_id] = 3; 
-            infection_timer[selected_id] = rand() % (10) + 7; // Random integer between 4 and 14;
+            //incubation_timer[selected_id] = 7 + rand() % 7; 
+            incubation_timer[selected_id] = 7;
+            //infection_timer[selected_id] = incubation_timer[selected_id] + 4 + rand() % 3; // Random integer between 4 and 14;
+            infection_timer[selected_id] = 14 + rand() % 2;
+            //printf( "Initialized infection timer to %d.\n", infection_timer[selected_id] );
             new_infection_idxs_out[ i ] = selected_id;
 
             /*
@@ -311,7 +352,7 @@ void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint3
             }
             else
             {
-                node[ i ] = 59; // this should be param
+                node[ i ] = 953; // this should be param
             }
         }
     }
@@ -332,7 +373,7 @@ void collect_report(
 )
 {
     //printf( "%s called w/ num_agents = %d, start_idx = %d, eula_idx = %d.\n", __FUNCTION__, num_agents, start_idx, eula_idx );
-    for (int i = start_idx; i < eula_idx; ++i) {
+    for (int i = start_idx; i <= eula_idx; ++i) {
         if( node[i] < 0 ) {
             continue;
         }
@@ -362,7 +403,7 @@ unsigned int campaign(
     float coverage,
     int campaign_node,
     bool *immunity,
-    float *immunity_timer,
+    signed char  *immunity_timer,
     float *age,
     int *node
 )
@@ -396,9 +437,10 @@ unsigned int ria(
     float coverage,
     int campaign_node,
     bool *immunity,
-    float *immunity_timer,
+    signed char  *immunity_timer,
     float *age,
-    int *node
+    int *node,
+    int *immunized_indices
 )
 {
     // We have in mind a vaccination campaign to a fraction of the population turning 9mo, in a particular node, at
@@ -410,6 +452,7 @@ unsigned int ria(
     unsigned int new_idx = start_idx;
     //printf( "%s called with start_idx=%d, counting down to %d.\n", __FUNCTION__, start_idx, num_agents );
     for (int i = start_idx; i > num_agents; --i) {
+        printf( "age = %f.\n", age[i] );
         // keep decrementing until we get kids younger than 0.75
         if( age[i] < 0.75 ) {
             //printf( "age of individual at idx %d = %f. Cutting out of loop.\n", i, age[i] );
@@ -421,18 +464,23 @@ unsigned int ria(
                                           // without vaxxing them all. But then later we want to be able to grab
                                           // everyone who aged into 9months while we were away and vax them. Tricky.
         if( age[i] > upper_bound ) {
+            //printf( "Too old. Keep counting down to find '9-month-olds'.\n" );
             continue; // keep counting down
         }
 
         if( node[i] == campaign_node &&
             immunity[i] == false &&
-            rand()%100 < 100*coverage
+            rand()%100 < 0.75*coverage
         )
         {
-            //printf( "Changing value of immunity at index %d.\n", i );
+            printf( "Changing value of immunity at index %d.\n", i );
             immunity[i] = true;
             immunity_timer[i] = -1;
-            report_counter ++;
+            immunized_indices[ report_counter ++ ] = i;
+        }
+        else
+        {
+            printf( "Didn't match immunity and coverage filter.\n" );
         }
     }
     /*if( report_counter > 0 ) {
@@ -442,34 +490,30 @@ unsigned int ria(
 }
 
 void reconstitute(
-    int num_agents,
     int start_idx,
     int num_new_babies,
     int* new_nodes,
     int *node,
-    float *age,
-    bool *infected,
-    float *incubation_timer,
-    bool *immunity,
-    float *immunity_timer,
-    float *expected_lifespan,
-    int* new_ids_out
+    float *age
 ) {
     //printf( "%s: num_new_babies = %d\n", __FUNCTION__, num_new_babies );
     int counter = 0;
     for (int i = start_idx; i > 0; --i) {
         if( age[i] < 0 ) {
             node[i] = new_nodes[ counter ];
-            new_ids_out[counter] = i;
+            age[i] = 0;
             counter ++;
             if( counter == num_new_babies ) {
                 return;
             }
         }
+        else {
+            printf( "ERROR: Next U (idx=%d) wasn't the right age (%f) for some reason!.\n", i, age[i] );
+        }
     }
     printf( "ERROR: We ran out of open slots for new babies!" );
     abort();
-    }
+}
 
 double random_double() {
     return (double) rand() / RAND_MAX;

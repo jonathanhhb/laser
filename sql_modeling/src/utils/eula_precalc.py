@@ -25,7 +25,7 @@ def init():
     header_row = np.genfromtxt(settings.eula_file, delimiter=',', dtype=str, max_rows=1)
 
     # Load the remaining data as numerical values, skipping the header row
-    data = np.genfromtxt(settings.eula_file, delimiter=',', dtype=float, skip_header=1)
+    data = np.genfromtxt(settings.eula_file, delimiter=',', dtype=float, skip_header=0)
 
     for row in data:
         node = int(row[0])
