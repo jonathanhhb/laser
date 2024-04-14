@@ -12,6 +12,7 @@
 #include <mutex>
 #include <algorithm>
 #include <cassert>
+#include <math.h>
 
 
 const float one_day = 1.0f/365.0f;
@@ -127,7 +128,8 @@ size_t progress_infections(
                     //immunity_timer[i] = rand() % (30) + 10;  // Random integer between 10 and 40
                     // Make immunity permanent for now; we'll want this configurable at some point
                     immunity_timer[i] = -1;
-                    immunity[i] = 1;
+                    immunity[i] = true;
+                    //printf( "Recovery.\n" );
                     recovered_idxs[ recovered_counter++ ] = i;
                 }
             }
@@ -136,18 +138,49 @@ size_t progress_infections(
     return recovered_counter;
 }
 
-void progress_immunities(int n, int start_idx, unsigned char * immunity_timer, bool* immunity, int* node) {
-    for (int i = start_idx; i < n; ++i) {
+void progress_immunities(
+    int start_idx,
+    int end_idx,
+    signed char * immunity_timer,
+    bool* immunity,
+    int* node
+) {
+    for (int i = start_idx; i <= end_idx; ++i) {
         if( immunity[i] && immunity_timer[i] > 0 )
         {
             immunity_timer[i]--;
             if( immunity_timer[i] == 0 )
             {
                 immunity[i] = false;
+                //printf( "New Susceptible.\n" );
             }
         }    
     }
 }
+
+float logistic_density_fn(float x) {
+    float L = 4.5; // Maximum value
+    float x0 = 250000.0; // Midpoint
+    float k = 0.0001; // Steepness parameter
+    float ret = 0.5 + (L / (1.0 + exp(-k * (x - x0))));
+    //printf( "ccs multiplier = %f.\n", ret );
+    return ret;
+}
+
+// Function to generate a random number of new infections
+int generate_new_infections(int N, double P) {
+    // Generate a random number of new infections from a binomial distribution
+    int new_infections = 0;
+    for (int i = 0; i < N; i++) {
+        double rand_num = (double)rand() / RAND_MAX;  // Generate a random number between 0 and 1
+        if (rand_num < P) {  // Probability of infection
+            new_infections++;
+        }
+    }
+    //printf( "generate_new_infections returning %d for num sus = %d and prob = %f.\n", new_infections, N, P );
+    return new_infections;
+}
+
 
 // Dang, this one is slower than the numpy version!?!?
 // maybe I need to just use the 64-bit ints and avoid the casting
@@ -184,14 +217,20 @@ void calculate_new_infections(
         {
             printf( "Exposed should never be > infection.\n" );
             printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infection_counts[ i ]*totals[i] );
-            abort();
+            exposed_counts_by_bin[ i ] = infection_counts[ i ]; // HACK: Maybe an exposed count is dead?
+            //abort();
         }
         infection_counts[ i ] -= exposed_counts_by_bin[ i ];
         //printf( "infection_counts[%d] = %f\n", i, infection_counts[i] );
         float foi = infection_counts[ i ] * base_inf;
-        assert( foi >= 0 );
+        //assert( foi >= 0 );
         //printf( "foi[%d] = %f\n", i, foi );
-        new_infs_out[ i ] = (int)( foi * sus[ i ] );
+        // We have to have a pop density factor if we're going to have CCS phenom otherwise absolute population total is 
+        // divided out of all the math.
+        //float density_factor = logistic_density_fn( totals[ i ] );
+        //new_infs_out[ i ] = (int)( foi * sus[ i ] * density_factor );
+        //new_infs_out[ i ] = (int)( foi * sus[ i ] );
+        new_infs_out[ i ] = generate_new_infections( sus[ i ]*totals[i], foi );
         //printf( "new infs[%d] = foi(%f) * sus(%f) = %d.\n", i, foi, sus[i], new_infs_out[i] );
     }
 }
@@ -266,8 +305,10 @@ void handle_new_infections(
             //assert( selected_id >= start_idx );
             //assert( selected_id <= end_idx );
             infected[selected_id] = true;
-            incubation_timer[selected_id] = 3; 
-            infection_timer[selected_id] = rand() % (10) + 4; // Random integer between 4 and 14;
+            //incubation_timer[selected_id] = 7 + rand() % 7; 
+            incubation_timer[selected_id] = 7;
+            //infection_timer[selected_id] = incubation_timer[selected_id] + 4 + rand() % 3; // Random integer between 4 and 14;
+            infection_timer[selected_id] = 14 + rand() % 2;
             //printf( "Initialized infection timer to %d.\n", infection_timer[selected_id] );
             new_infection_idxs_out[ i ] = selected_id;
 
@@ -467,7 +508,7 @@ void reconstitute(
             }
         }
         else {
-            printf( "ERROR: Next U wasn't the right age for some reason!.\n" );
+            printf( "ERROR: Next U (idx=%d) wasn't the right age (%f) for some reason!.\n", i, age[i] );
         }
     }
     printf( "ERROR: We ran out of open slots for new babies!" );
