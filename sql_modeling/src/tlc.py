@@ -88,29 +88,33 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
         ctx = model.progress_immunities( ctx )
 
         # The core transmission part begins
-        new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_mutiplier=sm, base_infectivity=bi )
-        report.new_infections = new_infections 
-        #print( f"new_infections=\n{new_infections}" )
+        if timestep>settings.burnin_delay:
+            new_infections = list()
+            if sum( fractions["I"].values() ) > 0:
+                new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_mutiplier=sm, base_infectivity=bi )
+                report.new_infections = new_infections 
+            #print( f"new_infections=\n{new_infections}" )
 
-        # TBD: for loop should probably be implementation-specific
-        end_time = time.time()
-        new_infs_time += (end_time-start_time)
-        start_time = end_time
-        #pre_transmission_time += (end_time-start_time)
-        ctx = model.handle_transmission( ctx, new_infections, timestep )
-        end_time = time.time()
-        transmission_time += (end_time-start_time)
-        start_time = end_time
+            # TBD: for loop should probably be implementation-specific
+            end_time = time.time()
+            new_infs_time += (end_time-start_time)
+            start_time = end_time
+            #pre_transmission_time += (end_time-start_time)
+            if sum( new_infections ) > 0:
+                ctx = model.handle_transmission( ctx, new_infections, timestep )
+                end_time = time.time()
+                transmission_time += (end_time-start_time)
+                start_time = end_time
 
-        ctx = model.add_new_infections( ctx )
-        end_time = time.time()
-        ani_time += (end_time-start_time)
-        start_time = end_time
+                ctx = model.add_new_infections( ctx )
+                end_time = time.time()
+                ani_time += (end_time-start_time)
+                start_time = end_time
 
-        ctx = model.distribute_interventions( ctx, timestep )
-        end_time = time.time()
-        iv_time += (end_time-start_time)
-        start_time = end_time
+            ctx = model.distribute_interventions( ctx, timestep )
+            end_time = time.time()
+            iv_time += (end_time-start_time)
+            start_time = end_time
 
         # Transmission is done, now migrate some. Only infected?
         if timestep>settings.burnin_delay and settings.num_nodes>1:
