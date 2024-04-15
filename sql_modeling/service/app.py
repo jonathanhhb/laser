@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string, send_file
 import subprocess
+import plot_spatial
 
 app = Flask(__name__)
 
@@ -20,9 +21,9 @@ params = [
         'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
 },
 {
-        'name': 'simulation duration in years',
+        'name': 'duration',
 	'default': "1",
-        'description': "Like it sounds"
+        'description': "Simulation duration in years."
 },
 {
         'name': 'base_infectivity',
@@ -90,8 +91,13 @@ FORM_TEMPLATE = """
 <html>
 <head>
   <title>Web Service Form</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='spinner.css') }}">
 </head>
 <body>
+  <div id="overlay"></div>
+  <div id="spinnerContainer">
+    <div class="loading-spinner"></div>
+  </div>
   <h1>Submit Parameters</h1>
   <form id="myForm" method="POST" action="/submit">
     <!-- Dynamically generate form fields -->
@@ -104,75 +110,9 @@ FORM_TEMPLATE = """
 
   <!-- JavaScript to handle form submission and image display -->
   <script>
-    // Define the params list of dictionaries
-    var params = [
-{
-	'name': "pop",
-	'default': "int(1e7)+1",
-        'description': "Total human population (not agents)"
-},
-{
-        'name': 'num_nodes',
-	'default': "60",
-        'description': "Number of nodes/populations"
-},
-{
-        'name': 'eula_age',
-	'default': "5",
-        'description': "Age at which we assume initial population is Epidemiologically Uninteresting (Immune)"
-},
-{
-        'name': 'simulation duration in years',
-	'default': "1",
-        'description': "Like it sounds"
-},
-{
-        'name': 'base_infectivity',
-	'default': "1.5e7",
-        'description': "Proxy for R0"
-},
-{
-        'name': 'cbr',
-	'default': "15",
-        'description': "Crude Birth Rate (same for all nodes)"
-},
-{
-        'name': 'campaign_day',
-	'default': "60",
-        'description': "Day at which one-time demo campaign occurs"
-},
-{
-        'name': 'campaign_coverage',
-	'default': "0.75",
-        'description': "Coverage to use for demo campaign"
-},
-{
-        'name': 'campaign_node',
-	'default': "15",
-        'description': "Node to target with demo campaign"
-},
-{
-        'name': 'migration_interval',
-	'default': "7",
-        'description': "Timesteps to wait being doing demo migration"
-},
-{
-        'name': 'mortality_interval',
-	'default': "7",
-        'description': "Timesteps between applying non-disease mortality."
-},
-{
-        'name': 'fertility_interval',
-	'default': "7",
-        'description': "Timesteps between adding new babies."
-},
-{
-        'name': 'ria_interval',
-	'default': "7",
-        'description': "Timesteps between applying routine immunization of 9-month-olds."
-}
-    ];
+    var params = {{ params|tojson }};
 
+    // Define the params list of dictionaries 
     // Function to create text entry fields based on params list
     function createFormFields() {
       var formFieldsHtml = '';
@@ -197,11 +137,26 @@ FORM_TEMPLATE = """
       // Send form data using AJAX
       var xhr = new XMLHttpRequest();
       xhr.open('POST', '/submit', true);
+
+      // Display loading overlay and spinner before sending the request
+      var overlay = document.getElementById('overlay');
+      var spinner = document.getElementById('spinnerContainer');
+      overlay.style.display = 'block';
+      spinner.style.display = 'block';
+
       xhr.onload = function() {
         if (xhr.status === 200) {
+          // Remove spinner
+          overlay.style.display = 'none';
+          spinner.style.display = 'none';
+          
           // If request is successful, display the returned image
-          var imageUrl = 'prevs.png'; // Replace with actual URL of returned image
-          document.getElementById('imageContainer').innerHTML = '<img src="' + imageUrl + '" alt="prevs">';
+          var timestamp = new Date().getTime(); // Generate a timestamp
+          var imageUrl = 'prevs.png?' + timestamp; // Append timestamp to image URL
+          document.getElementById('imageContainer').innerHTML = '<img src="' + imageUrl + '" alt="prevs">'; 
+        } else {
+          // If request is not successful, display an error message
+          document.getElementById('imageContainer').innerHTML = '<p>Error: Failed to load image.</p>';
         }
       };
       xhr.send(formData);
@@ -221,12 +176,14 @@ def run_sim( base_infectivity, migration_fraction, seasonal_multiplier ):
 
     csv_writer = report.init()
 
-    # Run the simulation for 1000 timesteps
     try:
-        subprocess.run(['/usr/local/bin/python3', 'tlc.py'], check=True)
+        print( "Run sim" )
+        subprocess.run(['/usr/local/bin/python3', 'tlc.py'], check=True) 
     except subprocess.CalledProcessError as e:
         # Handle subprocess error (e.g., log the error, restart the subprocess)
         print(f"Subprocess error: {e}")
+
+
     #from functools import partial
     #runsim = partial( run_simulation, ctx=ctx, csvwriter=csv_writer, num_timesteps=settings.duration )
     #runsim()
@@ -266,6 +223,39 @@ def update_settings_file(key_value_pairs, filename="settings.py"):
     with open(filename, 'w') as file:
         file.writelines(lines)
 
+    print( "Returning from run_sim." )
+
+def update_settings( data ):
+    # Read the settings.py file
+    with open("settings.py", "r") as settings_file:
+        lines = settings_file.readlines()
+
+    # Parse each line and update the value if the key matches one of your variable names
+    for i, line in enumerate(lines):
+        # Split the line into key and value
+        try:
+            key, value = line.strip().split("=")
+            # Check if the key matches one of your variable names
+            # Can't find better way than this
+            if key.strip() in data:
+                print( f"Settings new value for {key}." )
+                value = data[key.strip()]
+                if key.strip() == "duration":
+                    value += "*365"
+                lines[i] = f"{key.strip()} = {value}\n" 
+        except Exception as ex:
+            print( str( ex ) )
+            print( line )
+            print( "Probably just a commment or blank line." )
+
+    #print( "Saving new settings.py file as: " )
+    #for line in lines:
+        #print( line )
+    # Write the updated key-value pairs back to the file
+    with open("settings.py", "w") as settings_file:
+        settings_file.writelines(lines)
+
+
 @app.route('/submit', methods=['GET', 'POST'])
 def submit():
     if request.method == 'POST':
@@ -274,6 +264,7 @@ def submit():
         data = request.json
         print( data )
         # Run your application logic here
+
         base_infectivity = float(data['base_infectivity'])
         migration_fraction = float(data['migration_fraction'])
         seasonal_multiplier = float(data['seasonal_multiplier'])
@@ -286,10 +277,10 @@ def submit():
         #cbr = int(data['cbr'])
         #return 'Data received: {}'.format(data)
         run_sim( base_infectivity, migration_fraction, seasonal_multiplier )
+        print( "Sim completed. Returning output plot URL." )
         #return f'Sim ran'
         #return {'url': '/prevs.png'}
-        return metrics_csv_to_json()
-
+        return metrics_csv_to_json() 
     else:
         # Return the API documentation
         return API_DOC
@@ -305,7 +296,7 @@ def index():
     form_html = render_template_string(FORM_TEMPLATE, params=params)
     return form_html
 
-if __name__ == '__main__':
+if __name__ == '__main__': 
     app.run(debug=False, host='0.0.0.0')
 """
     {% for param, desc in params.items() %}
