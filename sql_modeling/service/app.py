@@ -211,7 +211,7 @@ FORM_TEMPLATE = """
 </html>
 """ 
 
-def run_sim():
+def run_sim( base_infectivity, migration_fraction, seasonal_multiplier ):
     import sir_numpy_c as model
     import settings
     import report
@@ -230,21 +230,66 @@ def run_sim():
     #from functools import partial
     #runsim = partial( run_simulation, ctx=ctx, csvwriter=csv_writer, num_timesteps=settings.duration )
     #runsim()
-    import plot_spatial
-    plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
+    #import plot_spatial
+    #plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
+
+def metrics_csv_to_json():
+    import csv
+    import json
+
+    # Initialize an empty dictionary to store the data
+    json_dict = {}
+
+    # Open the CSV file and read its contents
+    with open('metrics.csv', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # Skip the header row
+        for row in reader:
+            key, value = row
+            json_dict[key] = value
+    return json_dict
+
+def update_settings_file(key_value_pairs, filename="settings.py"):
+    # Read the content of the settings file
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+    # Find the line with the key to be replaced
+    for i, line in enumerate(lines):
+        for key, value in key_value_pairs.items():
+            if line.startswith(f'{key}=') or line.startswith(f'{key} ='):
+                # Replace the line with the new key-value pair
+                lines[i] = f'{key}={value}\n'
+                break
+
+    # Write the updated content back to the file
+    with open(filename, 'w') as file:
+        file.writelines(lines)
 
 @app.route('/submit', methods=['GET', 'POST'])
 def submit():
     if request.method == 'POST':
         # Process the submitted parameters
-        data = request.form
+        #data = request.form
+        data = request.json
+        print( data )
         # Run your application logic here
         base_infectivity = float(data['base_infectivity'])
-        cbr = int(data['cbr'])
+        migration_fraction = float(data['migration_fraction'])
+        seasonal_multiplier = float(data['seasonal_multiplier'])
+        new_kvps = {
+            "base_infectivity": base_infectivity,
+            "migration_fraction": migration_fraction,
+            "seasonal_multiplier": seasonal_multiplier
+        }
+        update_settings_file( new_kvps )
+        #cbr = int(data['cbr'])
         #return 'Data received: {}'.format(data)
-        run_sim()
+        run_sim( base_infectivity, migration_fraction, seasonal_multiplier )
         #return f'Sim ran'
-        return {'url': '/prevs.png'}
+        #return {'url': '/prevs.png'}
+        return metrics_csv_to_json()
+
     else:
         # Return the API documentation
         return API_DOC
@@ -261,7 +306,7 @@ def index():
     return form_html
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=False, host='0.0.0.0')
 """
     {% for param, desc in params.items() %}
       <label for="{{ param }}">{{ param }}:</label>

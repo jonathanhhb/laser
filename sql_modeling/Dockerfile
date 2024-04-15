@@ -18,7 +18,10 @@ COPY src/report.py .
 COPY src/update_ages.so .
 COPY src/model_numpy/eula.py model_numpy/eula.py
 COPY src/model_sql/eula.py model_sql/eula.py
-RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/modeled_pop.csv.gz
+COPY src/post_proc.py .
+RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_modeled.csv.gz
+RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/attraction_probabilities.csv.gz
+RUN gunzip attraction_probabilities.csv.gz
 COPY src/viz/plot_spatial.py .
 
 COPY service/fits.npy .
