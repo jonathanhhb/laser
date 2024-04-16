@@ -7,6 +7,7 @@ import ctypes
 import gzip
 import pdb
 import time
+import pandas as pd
 
 import settings
 import report
@@ -26,6 +27,30 @@ infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
+
+def load_cbrs():
+    # Read the CSV file into a DataFrame
+    df = pd.read_csv( settings.cbr_file )
+
+    # Initialize an empty dictionary to store the data
+    cbrs_dict = {}
+
+    # Iterate over the rows of the DataFrame
+    for index, row in df.iterrows():
+        # Get the values from the current row
+        elapsed_year = row['Elapsed_Years']
+        node_id = row['ID']
+        cbr = row['CBR']
+
+        # If the year is not already in the dictionary, create a new dictionary for that year
+        if elapsed_year not in cbrs_dict:
+            cbrs_dict[elapsed_year] = []
+        
+        # If the node_id is not already in the dictionary for the current year, add it
+        cbrs_dict[elapsed_year].append( cbr ) # is this guaranteed right order?
+
+    return cbrs_dict
+cbrs = load_cbrs()
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -351,9 +376,8 @@ def update_ages( data, totals, timestep ):
 
     global unborn_end_idx
     def births( data, interval ):
-        #data['age'] = 
         import sir_numpy
-        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=cbrs[timestep//365] )
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
