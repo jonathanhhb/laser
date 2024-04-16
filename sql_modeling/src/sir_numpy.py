@@ -216,11 +216,19 @@ def update_ages( data, totals, timestep ):
     #return data
 
 def births_from_cbr( node_pops, rate=30 ):
+    # rate can be array now
     # TBD: births = CBR & node_pop / 1000
     # placeholder: just say 10 per node for now to test rest of code path
     new_babies = {}
     for node in node_pops:
-        cbr_node = settings.fertility_interval * rate * (node_pops[node]/1000.0)/365.0
+        #cbr_node = settings.fertility_interval * rate * (node_pops[node]/1000.0)/365.0
+        act_rate = 17.5
+        if node < len(rate):
+            act_rate = rate[node]
+        else:
+            print( f"WARNING: {node} not found in rate array! Defaulting to 17.5." )
+            pdb.set_trace()
+        cbr_node = settings.fertility_interval * act_rate * (node_pops[node]/1000.0)/365.0
         new_babies[node] = np.random.poisson( cbr_node )
     return new_babies 
   
