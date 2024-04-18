@@ -5,20 +5,25 @@ import csv
 import sqlite3
 import random
 import numpy as np
+import sys
+sys.path.append( "." )
 
 from folium.plugins import HeatMapWithTime
-from engwaldata import data as engwal
+#from engwaldata import data as engwal
 
 # Create a map centered at a specific location
-m = folium.Map(location=(engwal.places['Birmingham'].latitude,engwal.places['Birmingham'].longitude), zoom_start=8) # Create a list to store the data for HeatMapWithTime
+#m = folium.Map(location=(engwal.places['Birmingham'].latitude,engwal.places['Birmingham'].longitude), zoom_start=8) # Create a list to store the data for HeatMapWithTime
+birmingham_location = (52.485,-1.86)
+m = folium.Map(location=(birmingham_location[0],birmingham_location[1]), zoom_start=8) # Create a list to store the data for HeatMapWithTime
 
-conn = sqlite3.connect('ew_sim.db')
+conn = sqlite3.connect('experiments/ew_sim.db')
 cursor = conn.cursor()
-cursor.execute('SELECT CAST(Timestep AS INT), Latitude, Longitude, CAST("New Infections" AS INT) FROM cases')
+start_time=800
+cursor.execute('SELECT CAST(Timestep AS INT), Latitude, Longitude, CAST("New Infections" AS INT) FROM cases WHERE (CAST(Timestep AS INT)>800)')
 raw_data = cursor.fetchall()
 
 # Group the data by timestep
-max_infections = 0
+max_infections = 500
 
 grouped_data = {}
 for row in raw_data:
@@ -41,7 +46,7 @@ grouped_data = list(grouped_data.values())
 locations=[[ float(elem[0]), float(elem[1]) ] for elem in grouped_data[0]]
 #for t in range(365):
 
-max_cases = 4000
+max_cases = 500
 for t in range(len(grouped_data)-1):
     this_row = []
     for i, location in enumerate( locations ):
