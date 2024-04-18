@@ -19,7 +19,15 @@ pip install folium
 
 1. Run Simulation:
 
-Execute the simulation process to generate the simulation_output.csv file. Details of the simulation process are omitted here.
+Execute the simulation process to generate the simulation_output.csv file. That file has the following columns/structure:
+
+```
+Timestep,Node,Susceptible,Infected,New Infections,Recovered,Births,Deaths
+```
+
+We shall only be using the Timestep, Node, and New Infections columns here.
+
+Details of the simulation process are omitted here.
 
 2. Get Cities Data:
 
@@ -50,7 +58,7 @@ WHERE engwal.Node = cities.ID;
 
 Exit the SQLite shell once the data has been imported and the view has been created.
 
-6.- Run Main Script:
+6. Run Main Script:
 ```
 python3 viz/folium_animate_from_sqlite.py
 ```
