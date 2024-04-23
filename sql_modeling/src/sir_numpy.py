@@ -1,6 +1,7 @@
 import random
 import csv
 import numpy as np
+import pandas as pd # for births.csv
 import concurrent.futures
 from functools import partial
 import pdb
@@ -9,7 +10,20 @@ import settings
 import report
 from model_numpy import eula
 
+def load_births_data(file_path):
+    # Load data from CSV
+    births_data = pd.read_csv(file_path)
 
+    # Sort data by ID
+    births_data.sort_values(by='ID', inplace=True)
+
+    # Group data by Elapsed_Years and transform into dictionary
+    births_dict = births_data.groupby('Elapsed_Years').apply(lambda x: x['Births'].values).to_dict()
+
+    return births_dict
+
+# Example usage
+births_data = load_births_data(settings.births_file)
 
 def load( pop_file ):
     """
@@ -215,6 +229,19 @@ def update_ages( data, totals, timestep ):
     return ( new_births, new_deaths )
     #return data
 
+def births_from_lorton_algo( timestep ):
+    # Calculate the year and day of year
+    year = timestep // 365
+    doy = (timestep % 365) + 1
+
+    # Filter data for the specified city IDs
+    city_births_data = np.array(births_data[year]).astype(int)
+    births_today = np.zeros(len(settings.nodes)).astype(int)
+    births = (city_births_data * doy // 365) - (city_births_data * (doy - 1) // 365)
+
+    births_today_dict = {node_id: births for node_id, births in zip(settings.nodes, births)}
+    return births_today_dict
+
 def births_from_cbr( node_pops, rate=30 ):
     # TBD: births = CBR & node_pop / 1000
     # placeholder: just say 10 per node for now to test rest of code path
@@ -224,6 +251,22 @@ def births_from_cbr( node_pops, rate=30 ):
         new_babies[node] = np.random.poisson( cbr_node )
     return new_babies 
   
+def births_from_cbr_var( node_pops, rate=30 ):
+    # rate can be array now
+    # TBD: births = CBR & node_pop / 1000
+    # placeholder: just say 10 per node for now to test rest of code path
+    new_babies = {}
+    for node in node_pops:
+        act_rate = 17.5
+        if node < len(rate):
+            act_rate = rate[node]
+        else:
+            print( f"WARNING: {node} not found in rate array! Defaulting to 17.5." )
+            pdb.set_trace()
+        cbr_node = settings.fertility_interval * act_rate * (node_pops[node]/1000.0)/365.0
+        new_babies[node] = np.random.poisson( cbr_node )
+    return new_babies 
+
 def births(data,totals_by_node):
     # Births
     # 1) demographic_dependent_Rate: 
