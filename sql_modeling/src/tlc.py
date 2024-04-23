@@ -76,6 +76,20 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
     global transmission_time, pre_transmission_time, post_transmission_time, prog_infs_time, new_infs_time, report_time, vd_time, mig_time, vd_time, iv_time, ani_time, import_time
 
     for timestep in range(1, num_timesteps + 1):
+        if timestep==1000:
+            transmission_time = 0
+            pre_transmission_time = 0
+            prog_infs_time = 0
+            new_infs_time = 0
+            post_transmission_time = 0
+            report_time = 0
+            vd_time = 0
+            mig_time = 0
+            vd_time = 0
+            iv_time = 0
+            ani_time = 0
+            import_time = 0
+            wtr_time = 0
 
         start_time = time.time()
         # We should always be in a low prev setting so this should only really ever operate
@@ -100,9 +114,8 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
             end_time = time.time()
             new_infs_time += (end_time-start_time)
             start_time = end_time
-            #pre_transmission_time += (end_time-start_time)
             if sum( new_infections ) > 0:
-                ctx = model.handle_transmission( ctx, new_infections, timestep )
+                ctx = model.handle_transmission( ctx, new_infections, counts["S"] )
                 end_time = time.time()
                 transmission_time += (end_time-start_time)
                 start_time = end_time
@@ -129,7 +142,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
             print( f"Injecting {settings.import_cases} new cases into node {settings.num_nodes-1}." )
             #model.inject_cases( ctx, timestep=timestep, import_cases=settings.import_cases, import_node=507 )
             for node in range(settings.num_nodes):
-                model.inject_cases( ctx, timestep=timestep, import_cases=settings.import_cases, import_node=node )
+                model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node )
         end_time = time.time()
         import_time += (end_time-start_time)
         start_time = end_time
