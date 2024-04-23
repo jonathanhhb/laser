@@ -369,8 +369,8 @@ def update_ages( data, totals, timestep ):
         #data['age'] = 
         import sir_numpy
         #num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
-        #num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
-        num_new_babies_by_node = sir_numpy.births_from_lorton_algo( timestep )
+        num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
+        #num_new_babies_by_node = sir_numpy.births_from_lorton_algo( timestep )
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
