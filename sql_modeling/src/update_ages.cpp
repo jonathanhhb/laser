@@ -15,10 +15,6 @@
 #include <math.h>
 
 
-static std::unordered_map<int,std::deque<int>> infection_queue_map;
-static std::unordered_map<int,std::deque<int>> incubation_queue_map;
-std::mutex map_mtx;
-
 extern "C" {
 
 /**
@@ -484,56 +480,6 @@ void progress_natural_mortality_binned(
 /////////////////////////////
 // DEPRECATED
 /////////////////////////////
-void init_maps(
-    size_t n,
-    int start_idx,
-    const bool * infected,
-    unsigned char * infection_timer
-) {
-    for (int i = start_idx; i < n; ++i) {
-        if( infected[ i ] ) {
-            infection_queue_map[ int(infection_timer[ i ]) ].push_back( i );
-            //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, int(infection_timer[ i ] ), infection_queue_map[ int(infection_timer[ i ]) ].size() );
-            incubation_queue_map[ 3 ].push_back( i );
-            //printf( "%d: incubation_queue_map[ 3 ].size() = %lu.\n", __LINE__, incubation_queue_map[ 3 ].size() );
-        }
-    }
-}
-
-void progress_infections2(
-    int n,
-    int start_idx,
-    unsigned char * infection_timer,
-    unsigned char * incubation_timer,
-    bool* infected,
-    signed char * immunity_timer,
-    bool* immunity,
-    int timestep
-)
-{
-    if (incubation_queue_map.find(timestep) != incubation_queue_map.end()) {
-        std::deque<int>& activators = incubation_queue_map[timestep];
-        for (int idx : activators) {
-            incubation_timer[idx] = 0;
-        }
-        incubation_queue_map.erase(timestep);
-        //incubation_queue_map[timestep].clear();
-    }
- 
-    if (infection_queue_map.find(timestep) != infection_queue_map.end()) {
-        std::deque<int>& recovereds = infection_queue_map[timestep];
-        for (int idx : recovereds) {
-            infection_timer[idx] = 0;
-            infected[idx] = false;
-            immunity_timer[idx] = -1;
-            immunity[idx] = true;
-        }
-        infection_queue_map.erase(timestep);
-        //infection_queue_map[timestep].clear();
-    }
-    //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, infection_queue_map[ timestep ].size() );
-    //printf( "%d: incubation_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, incubation_queue_map[ timestep ].size() );
-}
 
 float logistic_density_fn(float x) {
     float L = 4.5; // Maximum value
