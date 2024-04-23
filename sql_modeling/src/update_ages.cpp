@@ -15,29 +15,27 @@
 #include <math.h>
 
 
-const float one_day = 1.0f/365.0f;
 static std::unordered_map<int,std::deque<int>> infection_queue_map;
 static std::unordered_map<int,std::deque<int>> incubation_queue_map;
 std::mutex map_mtx;
 
 extern "C" {
 
-void init_maps(
-    size_t n,
-    int start_idx,
-    const bool * infected,
-    unsigned char * infection_timer
-) {
-    for (int i = start_idx; i < n; ++i) {
-        if( infected[ i ] ) {
-            infection_queue_map[ int(infection_timer[ i ]) ].push_back( i );
-            //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, int(infection_timer[ i ] ), infection_queue_map[ int(infection_timer[ i ]) ].size() );
-            incubation_queue_map[ 3 ].push_back( i );
-            //printf( "%d: incubation_queue_map[ 3 ].size() = %lu.\n", __LINE__, incubation_queue_map[ 3 ].size() );
-        }
-    }
-}
-
+/**
+ * Update ages of individuals within a specified range by incrementing ages for non-negative values.
+ *
+ * This function increments the ages of individuals within a specified range by a constant value representing
+ * one day. The function iterates over a range of indices in the `ages` array, starting from `start_idx` and
+ * ending at `stop_idx` (inclusive). For each index `i` within the specified range, if the age value `ages[i]`
+ * is non-negative, it is incremented by the constant value `one_day`, which represents one day in units of years.
+ *
+ * @param start_idx The index indicating the start of the range to update (inclusive).
+ * @param stop_idx The index indicating the end of the range to update (inclusive).
+ * @param ages Pointer to the array containing ages of individuals.
+ *             The ages are expected to be in units of years.
+ *             The array is modified in place.
+ */
+const float one_day = 1.0f/365.0f;
 void update_ages(unsigned int start_idx, unsigned int stop_idx, float *ages) {
     //printf( "%s: from %d to %d.\n", __FUNCTION__, start_idx, stop_idx );
     for (size_t i = start_idx; i <= stop_idx; i++) {
@@ -47,41 +45,6 @@ void update_ages(unsigned int start_idx, unsigned int stop_idx, float *ages) {
         }
         ages[i] += one_day;
     }
-}
-
-void progress_infections2(
-    int n,
-    int start_idx,
-    unsigned char * infection_timer,
-    unsigned char * incubation_timer,
-    bool* infected,
-    signed char * immunity_timer,
-    bool* immunity,
-    int timestep
-)
-{
-    if (incubation_queue_map.find(timestep) != incubation_queue_map.end()) {
-        std::deque<int>& activators = incubation_queue_map[timestep];
-        for (int idx : activators) {
-            incubation_timer[idx] = 0;
-        }
-        incubation_queue_map.erase(timestep);
-        //incubation_queue_map[timestep].clear();
-    }
- 
-    if (infection_queue_map.find(timestep) != infection_queue_map.end()) {
-        std::deque<int>& recovereds = infection_queue_map[timestep];
-        for (int idx : recovereds) {
-            infection_timer[idx] = 0;
-            infected[idx] = false;
-            immunity_timer[idx] = -1;
-            immunity[idx] = true;
-        }
-        infection_queue_map.erase(timestep);
-        //infection_queue_map[timestep].clear();
-    }
-    //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, infection_queue_map[ timestep ].size() );
-    //printf( "%d: incubation_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, incubation_queue_map[ timestep ].size() );
 }
 
 /*
@@ -158,29 +121,6 @@ void progress_immunities(
     }
 }
 
-float logistic_density_fn(float x) {
-    float L = 4.5; // Maximum value
-    float x0 = 250000.0; // Midpoint
-    float k = 0.0001; // Steepness parameter
-    float ret = 0.5 + (L / (1.0 + exp(-k * (x - x0))));
-    //printf( "ccs multiplier = %f.\n", ret );
-    return ret;
-}
-
-// Function to generate a random number of new infections
-int generate_new_infections(int N, double P) {
-    // Generate a random number of new infections from a binomial distribution
-    int new_infections = 0;
-    for (int i = 0; i < N; i++) {
-        double rand_num = (double)rand() / RAND_MAX;  // Generate a random number between 0 and 1
-        if (rand_num < P) {  // Probability of infection
-            new_infections++;
-        }
-    }
-    //printf( "generate_new_infections returning %d for num sus = %d and prob = %f.\n", new_infections, N, P );
-    return new_infections;
-}
-
 
 // Dang, this one is slower than the numpy version!?!?
 // maybe I need to just use the 64-bit ints and avoid the casting
@@ -189,9 +129,9 @@ void calculate_new_infections(
     int end_idx,
     int num_nodes,
     uint32_t * node,
-    unsigned char  * incubation_timer,
-    float * infection_counts, // actually fractions
-    float * sus, // also fractions
+    unsigned char  * incubation_timers,
+    float * infected_fractions,
+    float * susceptible_fractions, // also fractions
     uint32_t * totals,
     uint32_t * new_infs_out,
     float base_inf
@@ -203,9 +143,9 @@ void calculate_new_infections(
     // We are not yet counting E in our regular report, so we have to count them here.
     // Is that 'expensive'? Not sure yet.
     for (int i = start_idx; i <= end_idx; ++i) {
-        if( incubation_timer[i] >= 1 ) {
+        if( incubation_timers[i] >= 1 ) {
             exposed_counts_by_bin[ node[ i ] ] ++;
-            // printf( "DEBUG: incubation_timer[ %d ] = %f.\n", i, incubation_timer[i] );
+            // printf( "DEBUG: incubation_timers[ %d ] = %f.\n", i, incubation_timers[i] );
         }
     }
 
@@ -213,25 +153,25 @@ void calculate_new_infections(
     for (int i = 0; i < num_nodes; ++i) {
         //printf( "exposed_counts_by_bin[%d] = %f.\n", i, exposed_counts_by_bin[i] );
         exposed_counts_by_bin[ i ] /= totals[ i ];
-        if( exposed_counts_by_bin[ i ] > infection_counts[ i ] )
+        if( exposed_counts_by_bin[ i ] > infected_fractions[ i ] )
         {
             printf( "Exposed should never be > infection.\n" );
-            printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infection_counts[ i ]*totals[i] );
-            exposed_counts_by_bin[ i ] = infection_counts[ i ]; // HACK: Maybe an exposed count is dead?
+            printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infected_fractions[ i ]*totals[i] );
+            exposed_counts_by_bin[ i ] = infected_fractions[ i ]; // HACK: Maybe an exposed count is dead?
             //abort();
         }
-        infection_counts[ i ] -= exposed_counts_by_bin[ i ];
-        //printf( "infection_counts[%d] = %f\n", i, infection_counts[i] );
-        float foi = infection_counts[ i ] * base_inf;
+        infected_fractions[ i ] -= exposed_counts_by_bin[ i ];
+        //printf( "infected_fractions[%d] = %f\n", i, infected_fractions[i] );
+        float foi = infected_fractions[ i ] * base_inf;
         //assert( foi >= 0 );
         //printf( "foi[%d] = %f\n", i, foi );
         // We have to have a pop density factor if we're going to have CCS phenom otherwise absolute population total is 
         // divided out of all the math.
         //float density_factor = logistic_density_fn( totals[ i ] );
         //new_infs_out[ i ] = (int)( foi * sus[ i ] * density_factor );
-        //new_infs_out[ i ] = (int)( foi * sus[ i ] );
-        new_infs_out[ i ] = generate_new_infections( sus[ i ]*totals[i], foi );
-        //printf( "new infs[%d] = foi(%f) * sus(%f) = %d.\n", i, foi, sus[i], new_infs_out[i] );
+        new_infs_out[ i ] = (int)( foi * susceptible_fractions[ i ] * totals[i] );
+        //new_infs_out[ i ] = generate_new_infections( sus[ i ]*totals[i], foi );
+        //printf( "new infs[%d] = foi(%f) * susceptible_fractions(%f) = %d.\n", i, foi, susceptible_fractions[i], new_infs_out[i] );
     }
 }
 
@@ -246,33 +186,33 @@ void handle_new_infections(
     unsigned char  * infection_timer,
     int new_infections,
     int * new_infection_idxs_out,
-    int timestep
+    int num_eligible_agents
 ) {
     //printf( "Infect %d new people.\n", new_infections );
-    //std::map< int, int > id2idxMap;
-    // Allocate memory for subquery_condition array
     //printf( "start_idx=%d, end_idx=%d.\n", start_idx, end_idx );
+    // Allocate memory for subquery_condition array
     unsigned int num_agents = end_idx-start_idx+1;
     bool *subquery_condition = (bool*)malloc(num_agents * sizeof(bool));
-
     // Apply conditions to identify eligible agents
     for (int i = start_idx; i <= end_idx; i++) {
         subquery_condition[i-start_idx] = !infected[i] && !immunity[i] && agent_node[i] == node;
     }
 
-    // Initialize random number generator
-    //srand(time(NULL)); // TBD: this should just be done once. But I don't really have an "init" function yet.
-    
+    /*
     // Count the number of eligible agents
-    int num_eligible_agents = 0;
+    int num_eligible_agents_calc = 0;
     for (int i = 0; i <= end_idx-start_idx; i++) {
         if (subquery_condition[i]) {
-            num_eligible_agents++;
+            num_eligible_agents_calc++;
         }
     }
+    if( num_eligible_agents_calc != num_eligible_agents )
+    {
+        printf( "WARNING: num_eligible_agents = %d for node %d but num_eligible_agents_calc = %d.\n", num_eligible_agents, node, num_eligible_agents_calc );
+    }
+    */
     //printf( "num_eligible_agents=%d.\n", num_eligible_agents );
     if( num_eligible_agents > 0 ) {
-
         // Allocate memory for selected_indices array
         int *selected_indices = (int*) malloc(num_eligible_agents * sizeof(int));
 
@@ -284,53 +224,39 @@ void handle_new_infections(
                 //assert( selected_idx >= start_idx );
                 //assert( selected_idx <= end_idx );
                 selected_indices[count++] = selected_idx;
+                //printf( "selected_indices[%d] = %d.\n", count-1, selected_idx );
+                if( count == num_eligible_agents ) {
+                    // Note that we saw a bug where sometimes more agents were found to satisfy our sus condition than the value passed it! TBD
+                    break;
+                }
             }
         }
-        // Shuffle the selected_indices array
-        for (int i = num_eligible_agents - 1; i > 0; i--) {
-            int j = rand() % (i + 1);
-            int temp = selected_indices[i];
-            selected_indices[i] = selected_indices[j];
-            selected_indices[j] = temp;
-        }
 
-        // Update the 'infected' column based on selected indices
-        int num_infections = (new_infections < num_eligible_agents) ? new_infections : num_eligible_agents;
-        //printf( "num_infections = %d.\n", num_infections  );
-        std::deque<int> new_incubators;
-        unsigned int inc_time_idx = int(timestep + 3);
-        for (int i = 0; i < num_infections; i++) {
+        int i, step, selected_count = 0;
+        // Calculate the step size
+        if (new_infections >= num_eligible_agents) {
+            step = 1; // If we need to select all elements or more, select each one
+        } else {
+            step = num_eligible_agents/new_infections; // If we need to select less than N, calculate step size
+        }
+        //printf( "Selecting %d new infectees by skipping through %d candidates %d at a time.\n", new_infections, num_eligible_agents, step );
+        for (i = 0; i < num_eligible_agents && selected_count < new_infections; i += step) {
             unsigned int selected_id = selected_indices[i];
-            //printf( "Infecting index=%d.\n", selected_indices[i] );
-            //assert( selected_id >= start_idx );
-            //assert( selected_id <= end_idx );
+            assert( selected_id >= start_idx );
+            assert( selected_id <= end_idx );
+            //printf( "Infecting index=%d.\n", selected_id );
             infected[selected_id] = true;
-            //incubation_timer[selected_id] = 7 + rand() % 7; 
             incubation_timer[selected_id] = 7;
-            //infection_timer[selected_id] = incubation_timer[selected_id] + 4 + rand() % 3; // Random integer between 4 and 14;
             infection_timer[selected_id] = 14 + rand() % 2;
-            //printf( "Initialized infection timer to %d.\n", infection_timer[selected_id] );
-            new_infection_idxs_out[ i ] = selected_id;
-
-            /*
-            // maps code
-            unsigned int recovery_time = int(timestep+infection_timer[selected_id]);
-            {
-            std::lock_guard<std::mutex> lock(map_mtx);
-            infection_queue_map[ recovery_time ].push_back( selected_id );
-            }
-            {
-            std::lock_guard<std::mutex> lock(map_mtx);
-            incubation_queue_map[ inc_time_idx ].push_back( selected_id );
-            }
-            //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, recovery_time, infection_queue_map[recovery_time].size() );
-            //printf( "%d: incubation_queue_map[ %d ].size() = %lu.\n", __LINE__, inc_time_idx, incubation_queue_map[inc_time_idx].size() );
-            */
+            new_infection_idxs_out[ selected_count++ ] = selected_id;
         }
+        
+        //printf( "free-ing selected_indices.\n" );
         free(selected_indices);
     }
 
     // Free dynamically allocated memory
+    //printf( "free-ing subquery_condition.\n" );
     free(subquery_condition);
 }
 
@@ -554,5 +480,83 @@ void progress_natural_mortality_binned(
         }
     }
 }
+
+/////////////////////////////
+// DEPRECATED
+/////////////////////////////
+void init_maps(
+    size_t n,
+    int start_idx,
+    const bool * infected,
+    unsigned char * infection_timer
+) {
+    for (int i = start_idx; i < n; ++i) {
+        if( infected[ i ] ) {
+            infection_queue_map[ int(infection_timer[ i ]) ].push_back( i );
+            //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, int(infection_timer[ i ] ), infection_queue_map[ int(infection_timer[ i ]) ].size() );
+            incubation_queue_map[ 3 ].push_back( i );
+            //printf( "%d: incubation_queue_map[ 3 ].size() = %lu.\n", __LINE__, incubation_queue_map[ 3 ].size() );
+        }
+    }
+}
+
+void progress_infections2(
+    int n,
+    int start_idx,
+    unsigned char * infection_timer,
+    unsigned char * incubation_timer,
+    bool* infected,
+    signed char * immunity_timer,
+    bool* immunity,
+    int timestep
+)
+{
+    if (incubation_queue_map.find(timestep) != incubation_queue_map.end()) {
+        std::deque<int>& activators = incubation_queue_map[timestep];
+        for (int idx : activators) {
+            incubation_timer[idx] = 0;
+        }
+        incubation_queue_map.erase(timestep);
+        //incubation_queue_map[timestep].clear();
+    }
+ 
+    if (infection_queue_map.find(timestep) != infection_queue_map.end()) {
+        std::deque<int>& recovereds = infection_queue_map[timestep];
+        for (int idx : recovereds) {
+            infection_timer[idx] = 0;
+            infected[idx] = false;
+            immunity_timer[idx] = -1;
+            immunity[idx] = true;
+        }
+        infection_queue_map.erase(timestep);
+        //infection_queue_map[timestep].clear();
+    }
+    //printf( "%d: infection_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, infection_queue_map[ timestep ].size() );
+    //printf( "%d: incubation_queue_map[ %d ].size() = %lu.\n", __LINE__, timestep, incubation_queue_map[ timestep ].size() );
+}
+
+float logistic_density_fn(float x) {
+    float L = 4.5; // Maximum value
+    float x0 = 250000.0; // Midpoint
+    float k = 0.0001; // Steepness parameter
+    float ret = 0.5 + (L / (1.0 + exp(-k * (x - x0))));
+    //printf( "ccs multiplier = %f.\n", ret );
+    return ret;
+}
+
+// Function to generate a random number of new infections
+int generate_new_infections(int N, double P) {
+    // Generate a random number of new infections from a binomial distribution
+    int new_infections = 0;
+    for (int i = 0; i < N; i++) {
+        double rand_num = (double)rand() / RAND_MAX;  // Generate a random number between 0 and 1
+        if (rand_num < P) {  // Probability of infection
+            new_infections++;
+        }
+    }
+    //printf( "generate_new_infections returning %d for num sus = %d and prob = %f.\n", new_infections, N, P );
+    return new_infections;
+}
+
 
 }
