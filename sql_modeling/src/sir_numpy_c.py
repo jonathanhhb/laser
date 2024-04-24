@@ -504,9 +504,7 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
     sm = kwargs.get('seasonal_multiplier')
     inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
     bi = kwargs.get('base_infectivity')
-
     #print( f"inf_multiplier = {inf_multiplier}" )
-    print( f"bi = {bi}" )
     update_ages_lib.calculate_new_infections(
             inf_sus_idx, # unborn_end_idx,
             dynamic_eula_idx,
