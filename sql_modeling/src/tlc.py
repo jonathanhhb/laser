@@ -51,8 +51,14 @@ def collect_and_report(csvwriter, timestep, ctx):
         raise ValueError( f"Exception {ex} at timestep {timestep} and counts {counts['I']}, {counts['S']}, {counts['R']}" )
     return counts, fractions, totals
 
-def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
+def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
     counts, fractions, totals = collect_and_report(csvwriter,0, ctx)
+    if sm==-1:
+        sm = settings.seasonal_multiplier
+    if bi==-1:
+        bi = settings.base_infectivity
+    if mf==-1:
+        mf = settings.migration_fraction
 
     for timestep in range(1, num_timesteps + 1):
         # We should always be in a low prev setting so this should only really ever operate
@@ -66,7 +72,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=1.0, bi=100, mf=0.01):
         if timestep>settings.burnin_delay:
             new_infections = list()
             if sum( fractions["I"].values() ) > 0:
-                new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_mutiplier=sm, base_infectivity=bi )
+                new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_multiplier=sm, base_infectivity=bi )
                 report.new_infections = new_infections 
             #print( f"new_infections=\n{new_infections}" )
 

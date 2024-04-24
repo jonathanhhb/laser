@@ -501,11 +501,12 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
         df = pd.DataFrame(data)
         df.to_csv('temp.csv', index=False)
 
-    sm = kwargs.get('seasonal_multiplier', settings.seasonal_multiplier)
+    sm = kwargs.get('seasonal_multiplier')
     inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
-    bi = kwargs.get('base_infectivity', settings.base_infectivity)
+    bi = kwargs.get('base_infectivity')
 
     #print( f"inf_multiplier = {inf_multiplier}" )
+    print( f"bi = {bi}" )
     update_ages_lib.calculate_new_infections(
             inf_sus_idx, # unborn_end_idx,
             dynamic_eula_idx,
@@ -590,7 +591,7 @@ def migrate( data, timestep, **kwargs ):
 
         # Calculate the number of individuals to select (1% of the total infected individuals)
         #num_to_select = int(len(infected_indices) * 0.01)
-        mf = kwargs.get('migration_fraction', settings.migration_fraction)
+        mf = kwargs.get('migration_fraction')
         num_to_select = int(len(infected_indices) * mf)
 
         if num_to_select > 0:
