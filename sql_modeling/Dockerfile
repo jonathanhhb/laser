@@ -32,6 +32,7 @@ COPY src/viz/plot_spatial.py .
 
 COPY service/fits.npy .
 COPY src/cbrs.csv .
+COPY src/births.csv .
 
 CMD ["python", "app.py"]
 
