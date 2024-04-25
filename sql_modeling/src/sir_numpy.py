@@ -421,7 +421,7 @@ def calculate_new_infections( data, inf, sus, totals ):
         #print( f"infectious fraction for node {idx} = {inf[idx]} after subtracting {node_counts_incubators[idx]} incubators." )
     ret_ni = np.zeros(settings.num_nodes).astype( np.uint32 )
     for node in range(settings.num_nodes):
-        ret_ni[node] = int(sus[node]*inf[node]*settings.base_infectivity)
+        ret_ni[node] = int(sus[node]*inf[node]*settings.base_infectivity*totals[node])
     #print( f"New Infections: {new_infections} = {np.array(sorted(sus.values()))} * {np.array(sorted(inf.values()))} * {settings.base_infectivity}" )
     return ret_ni
 
@@ -443,20 +443,16 @@ def handle_transmission_by_node( data, new_infections, node=0 ):
             #print( "ERROR: Infecting someone already infected!." )
         data['infected'][selected_indices] = True
         #data['incubation_timer'][selected_indices] = 2
+        return selected_indices 
 
-    #print( new_infections[node] )
-    if new_infections[node]>0:
-        handle_new_infections(new_infections[node])
-
-    #print( f"{new_infections} new infections in node {node}." )
-    return data
+    return handle_new_infections(new_infections)
 
 def handle_transmission( data_in, new_infections_in ):
     # We want to do this in parallel;
     htbn = partial( handle_transmission_by_node, data_in, new_infections_in )
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, settings.nodes))
-    return data_in
+    return np.concatenate(results).tolist()
 
 def add_new_infections( data ):
     # Actually this just sets the new infection timers (globally) for all the new infections

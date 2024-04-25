@@ -9,6 +9,7 @@ import gzip
 import pdb
 import time
 import pandas as pd
+import gc
 
 import settings
 import report
@@ -28,6 +29,12 @@ infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
+
+# optional function to dump data to disk at any point. A sort-of serialization.
+def dump():
+    import pandas as pd
+    df = pd.DataFrame(data)
+    df.to_csv('temp.csv', index=False)
 
 def load_cbrs():
     # Read the CSV file into a DataFrame
@@ -209,22 +216,6 @@ def load( pop_file ):
     ninemo_tracker_idx = dynamic_eula_idx 
     inf_sus_idx = dynamic_eula_idx 
 
-    def init_maps_np():
-        global infection_queue_map, incubation_queue_map
-        indices = np.where( data['infected'] )[0]
-        reco_times = data['infection_timer'][indices]
-        for reco_time, idx in zip( reco_times, indices ):
-            infection_queue_map[ reco_time ].append( idx )
-        incubation_queue_map[ 3 ] = indices
-    def init_maps_c():
-        update_ages_lib.init_maps(
-            len( data['node'] ),
-            unborn_end_idx,
-            data['infected'],
-            data['infection_timer']
-        )
-    #init_maps_np()
-    #init_maps_c()
     # Now 'columns' is a dictionary where keys are column headers and values are NumPy arrays
 
     def load_attraction_probs():
@@ -362,7 +353,6 @@ def update_ages( data, totals, timestep ):
 
     global unborn_end_idx
     def births( data, interval ):
-        import sir_numpy 
         num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
@@ -482,40 +472,45 @@ def progress_immunities( data ):
     return data
 
 def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
-    # Are inf and sus fractions or totals? fractions
-    new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
-    sorted_items = sorted(inf.items())
-    inf_np = np.array([np.float32(value) for _, value in sorted_items])
-    #print( f"inf_np = {inf_np}." )
-    sus_np = np.array([np.float32(value) for value in sus.values()])
-    tot_np = np.array([np.uint32(value) for value in totals.values()])
-    def dump():
-        import pandas as pd
-        df = pd.DataFrame(data)
-        df.to_csv('temp.csv', index=False)
+    def cni_c():
+        # Are inf and sus fractions or totals? fractions
+        new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
+        sorted_items = sorted(inf.items())
+        inf_np = np.array([np.float32(value) for _, value in sorted_items])
+        #print( f"inf_np = {inf_np}." )
+        sus_np = np.array([np.float32(value) for value in sus.values()])
+        tot_np = np.array([np.uint32(value) for value in totals.values()])
 
-    sm = kwargs.get('seasonal_multiplier')
-    inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
-    bi = kwargs.get('base_infectivity')
-    #print( f"inf_multiplier = {inf_multiplier}" )
-    update_ages_lib.calculate_new_infections(
-            inf_sus_idx, # unborn_end_idx,
-            dynamic_eula_idx,
-            len( inf ),
-            data['node'],
-            data['incubation_timer'],
-            inf_np,
-            sus_np,
-            tot_np,
-            new_infections,
-            bi * inf_multiplier
-        )
-    #print( f"new_infections = {new_infections}." )
+        sm = kwargs.get('seasonal_multiplier')
+        inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
+        bi = kwargs.get('base_infectivity')
+        #print( f"inf_multiplier = {inf_multiplier}" )
+        update_ages_lib.calculate_new_infections(
+                inf_sus_idx, # unborn_end_idx,
+                dynamic_eula_idx,
+                len( inf ),
+                data['node'],
+                data['incubation_timer'],
+                inf_np,
+                sus_np,
+                tot_np,
+                new_infections,
+                bi * inf_multiplier
+            )
+        #print( f"new_infections = {new_infections}." )
+        return new_infections
+
+    new_infections = cni_c()
+    #import sir_numpy as py_model
+    #new_infections = py_model.calculate_new_infections( data, inf, sus, totals )
     return new_infections 
 
 def handle_transmission_by_node( data, new_infections, susceptible_counts, node=0 ):
     # Step 5: Update the infected flag for NEW infectees
     def handle_new_infections_c(new_infections):
+        if new_infections > 1e6: # arbitrary "too large" value:
+            print( "ERROR: new_infections value probably = -1. Ignore and continue." )
+            return np.zeros(1).astype( np.uint32 )
         new_infection_idxs = np.zeros(new_infections).astype( np.uint32 )
         update_ages_lib.handle_new_infections(
                 unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
@@ -534,6 +529,10 @@ def handle_transmission_by_node( data, new_infections, susceptible_counts, node=
         #print( f"New Infection indexes = {new_infection_idxs} in node {node} at {timestep}." )
         #print( f"New Infection ids = {data['id'][new_infection_idxs]}." )
         return new_infection_idxs
+
+    def handle_new_infections_np(new_infections):
+        import sir_numpy as py_model
+        return py_model.handle_transmission_by_node( data, new_infections, node )
 
     #print( f"new_infections at node {node} = {new_infections[node]}" )
     niis = handle_new_infections_c(new_infections[node])
@@ -556,7 +555,6 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
             if idx > 0:
                 #print( f"New infection has age {data_in['age'][idx]}" )
                 swap_to_dynamic_si( data_in, idx )
-    
     return data_in
 
 def add_new_infections( data ):
@@ -613,6 +611,9 @@ def migrate( data, timestep, **kwargs ):
                 data['node'])
             """
         #print( "Ending migration..." )
+
+    # forced garbage collection is necessary due to something in handle_new_infections but done here so it's not done every timestep
+    gc.collect()
     return data
 
 def distribute_interventions( data, timestep ):
