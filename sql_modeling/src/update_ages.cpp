@@ -118,8 +118,27 @@ void progress_immunities(
 }
 
 
-// Dang, this one is slower than the numpy version!?!?
-// maybe I need to just use the 64-bit ints and avoid the casting
+/*
+ Calculate new infections based on exposed individuals and susceptible fractions.
+
+Parameters:
+- start_idx (int): The starting index of the range of individuals to process.
+- end_idx (int): The ending index of the range of individuals to process. Expected to be mix of S, E and I.
+- num_nodes (int): The total number of nodes in the system.
+- node (uint32_t*): Array containing node identifiers.
+- incubation_timers (unsigned char*): Array containing the incubation timers for each node.
+- infected_fractions (float*): Array containing the fractions of infected individuals for each node.
+- susceptible_fractions (float*): Array containing the fractions of susceptible individuals for each node.
+- totals (uint32_t*): Array containing the total population for each node.
+- new_infs_out (uint32_t*): Output array to store the calculated new infections for each node.
+- base_inf (float): Base infectivity factor.
+
+Returns:
+None
+
+Description:
+Calculate the new infections for each node based on the infectious individuals, susceptible fractions, and infectivity.  Updates the new_infs_out array with the calculated number of new infections for each node.
+*/
 void calculate_new_infections(
     int start_idx, 
     int end_idx,
@@ -145,7 +164,7 @@ void calculate_new_infections(
         }
     }
 
-    // new infections = Infecteds * infectivity * susceptibles
+    // new infections = Infected frac * infectivity * susceptible frac * pop
     for (int i = 0; i < num_nodes; ++i) {
         //printf( "exposed_counts_by_bin[%d] = %f.\n", i, exposed_counts_by_bin[i] );
         exposed_counts_by_bin[ i ] /= totals[ i ];
@@ -161,12 +180,7 @@ void calculate_new_infections(
         float foi = infected_fractions[ i ] * base_inf;
         //assert( foi >= 0 );
         //printf( "foi[%d] = %f\n", i, foi );
-        // We have to have a pop density factor if we're going to have CCS phenom otherwise absolute population total is 
-        // divided out of all the math.
-        //float density_factor = logistic_density_fn( totals[ i ] );
-        //new_infs_out[ i ] = (int)( foi * sus[ i ] * density_factor );
         new_infs_out[ i ] = (int)( foi * susceptible_fractions[ i ] * totals[i] );
-        //new_infs_out[ i ] = generate_new_infections( sus[ i ]*totals[i], foi );
         //printf( "new infs[%d] = foi(%f) * susceptible_fractions(%f) = %d.\n", i, foi, susceptible_fractions[i], new_infs_out[i] );
     }
 }
@@ -184,41 +198,22 @@ void handle_new_infections(
     int * new_infection_idxs_out,
     int num_eligible_agents
 ) {
-    //printf( "Infect %d new people.\n", new_infections );
-    //printf( "start_idx=%d, end_idx=%d.\n", start_idx, end_idx );
-    // Allocate memory for subquery_condition array
-    unsigned int num_agents = end_idx-start_idx+1;
-    bool *subquery_condition = (bool*)malloc(num_agents * sizeof(bool));
-    // Apply conditions to identify eligible agents
-    for (int i = start_idx; i <= end_idx; i++) {
-        subquery_condition[i-start_idx] = !infected[i] && !immunity[i] && agent_node[i] == node;
+    if( end_idx < start_idx ) {
+        printf( "ERROR: start_idx (%d) is not < end_idx (%d).\n", start_idx, end_idx );
+        return;
     }
 
-    /*
-    // Count the number of eligible agents
-    int num_eligible_agents_calc = 0;
-    for (int i = 0; i <= end_idx-start_idx; i++) {
-        if (subquery_condition[i]) {
-            num_eligible_agents_calc++;
-        }
-    }
-    if( num_eligible_agents_calc != num_eligible_agents )
-    {
-        printf( "WARNING: num_eligible_agents = %d for node %d but num_eligible_agents_calc = %d.\n", num_eligible_agents, node, num_eligible_agents_calc );
-    }
-    */
-    //printf( "num_eligible_agents=%d.\n", num_eligible_agents );
     if( num_eligible_agents > 0 ) {
-        // Allocate memory for selected_indices array
-        int *selected_indices = (int*) malloc(num_eligible_agents * sizeof(int));
 
-        // Randomly sample from eligible agents
+        unsigned int num_agents = end_idx-start_idx+1;
+        int selected_indices[num_eligible_agents]; // store idxs of selected for infection
         int count = 0;
-        for (int i = 0; i <= end_idx-start_idx; i++) {
-            if (subquery_condition[i]) {
-                unsigned int selected_idx = i+start_idx;
-                //assert( selected_idx >= start_idx );
-                //assert( selected_idx <= end_idx );
+
+        //for (int i = 0; i <= end_idx-start_idx; i++) {
+        for (int i = start_idx; i <= end_idx; i++) {
+            if( !infected[i] && !immunity[i] && agent_node[i] == node ) {
+                // Found eligible (susceptible) in group of S & Is & maybe Es and Rs
+                unsigned int selected_idx = i;
                 selected_indices[count++] = selected_idx;
                 //printf( "selected_indices[%d] = %d.\n", count-1, selected_idx );
                 if( count == num_eligible_agents ) {
@@ -246,14 +241,7 @@ void handle_new_infections(
             infection_timer[selected_id] = 14 + rand() % 2;
             new_infection_idxs_out[ selected_count++ ] = selected_id;
         }
-        
-        //printf( "free-ing selected_indices.\n" );
-        free(selected_indices);
     }
-
-    // Free dynamically allocated memory
-    //printf( "free-ing subquery_condition.\n" );
-    free(subquery_condition);
 }
 
 void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
