@@ -112,6 +112,19 @@ update_ages_lib.handle_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     ctypes.c_int, # sus number for node
 ]
+update_ages_lib.handle_new_infections_threaded.argtypes = [
+    ctypes.c_uint32, # num_agents
+    ctypes.c_size_t,  # starting index
+    ctypes.c_size_t,  # num_nodes
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
+    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
+    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. new infections to create by node
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
+]
 update_ages_lib.migrate.argtypes = [
     ctypes.c_uint32, # num_agents
     ctypes.c_size_t,  # starting index
@@ -497,7 +510,7 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
                 new_infections,
                 bi * inf_multiplier
             )
-        #print( f"new_infections = {new_infections}." )
+        #print( f"DEBUG: new_infections = {new_infections}." )
         return new_infections
 
     new_infections = cni_c()
@@ -541,12 +554,29 @@ def handle_transmission_by_node( data, new_infections, susceptible_counts, node=
 def handle_transmission( data_in, new_infections_in, susceptible_counts ):
     # We want to do this in parallel;
     #print( f"DEBUG: New Infections: {new_infections_in}" )
+    """
     htbn = partial( handle_transmission_by_node, data_in, new_infections_in, susceptible_counts )
     relevant_nodes = [ node_id for node_id in settings.nodes if new_infections_in[ node_id ] > 0 ]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, relevant_nodes))
+    """
+    new_infection_idxs = np.zeros(sum(new_infections_in)).astype( np.uint32 )
+    update_ages_lib.handle_new_infections_threaded(
+        unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
+        inf_sus_idx, # dynamic_eula_idx,
+        settings.num_nodes,
+        data_in['node'],
+        data_in['infected'],
+        data_in['immunity'],
+        data_in['incubation_timer'],
+        data_in['infection_timer'],
+        new_infections_in,
+        new_infection_idxs,
+        np.array(list(susceptible_counts.values())).astype( np.uint32 )
+    )
 
     # Segregate S from I: Swap new I's out of S group into I group
+    """
     if len( results ) > 0:
         all_new_idxs = []
         for result in results:
@@ -555,6 +585,10 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
             if idx > 0:
                 #print( f"New infection has age {data_in['age'][idx]}" )
                 swap_to_dynamic_si( data_in, idx )
+    """
+    for idx in sorted(new_infection_idxs,reverse=True):
+        if idx > 0:
+            swap_to_dynamic_si( data_in, idx )
     return data_in
 
 def add_new_infections( data ):
