@@ -610,7 +610,7 @@ def migrate( data, timestep, **kwargs ):
         #print( "Starting migration..." )
         # Let's migrate 1% of infected agents.
         # Select indices where 'infected' is True
-        infected_indices = np.where(data['infected'] == True)[0]
+        infected_indices = np.where((data['infected'] == True ) & ( data['incubation_timer']<=0 ))[0]
 
         # Calculate the number of individuals to select (1% of the total infected individuals)
         #num_to_select = int(len(infected_indices) * 0.01)
