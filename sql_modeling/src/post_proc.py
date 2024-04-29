@@ -1,13 +1,16 @@
 import pandas as pd
+from scipy.stats import binom
+import pandas as pd
+import numpy as np
+
 import pdb
 
 burnin = 1000
 def analyze_ccs():
-    from scipy.stats import binom
-    import pandas as pd
-
     # Load the CSV file
     cases_df = pd.read_csv('simulation_output.csv')
+
+    cases_df = cases_df[cases_df["Timestep"] > burnin]
 
     # Set the parameters for the binomial distribution
     num_trials = cases_df['New Infections']  # Number of trials (events)
@@ -50,7 +53,17 @@ def analyze_ccs():
 
     # Calculate the mean of 'Fraction_NonZero_New_Infections' for the selected cities
     mean_fraction = city_rows['Fraction_NonZero_New_Infections'].mean()
-    return mean_fraction 
+
+    def get_median( population, fraction ):
+        x=np.log10(population)
+        y=fraction
+        #slope, intercept, _, _, _ = linregress(x, y)
+        median_point = np.median(x), np.median(y)
+        return median_point
+
+    pdb.set_trace()
+    median = get_median( pops_df["Population"], sorted_df['Fraction_NonZero_New_Infections'] )
+    return mean_fraction, median[1]
 
 
 
@@ -81,12 +94,12 @@ def analyze():
     # Calculate the average number of new infections in London per year
     average_new_infections_per_year_london = total_new_infections_london / num_years
 
-    ccs_mean = analyze_ccs()
+    ccs_bigcity_mean, ccs_median = analyze_ccs()
 
     # Create a DataFrame with the metric and its value
     data = {
-        "metric": ["mean_new_infs_per_year", "mean_new_infs_per_year_london", "mean_ccs_fraction_big_cities"],
-        "value": [average_new_infections_per_year, average_new_infections_per_year_london, ccs_mean ]
+        "metric": ["mean_new_infs_per_year", "mean_new_infs_per_year_london", "mean_ccs_fraction_big_cities", "ccs_median_fraction" ],
+        "value": [average_new_infections_per_year, average_new_infections_per_year_london, ccs_bigcity_mean, ccs_median ]
     }
     report_df = pd.DataFrame(data)
 
