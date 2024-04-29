@@ -1,5 +1,6 @@
 import pandas as pd
 from scipy.stats import binom
+from scipy.optimize import curve_fit
 import pandas as pd
 import numpy as np
 
@@ -61,10 +62,16 @@ def analyze_ccs():
         median_point = np.median(x), np.median(y)
         return median_point
 
-    pdb.set_trace()
-    median = get_median( pops_df["Population"], sorted_df['Fraction_NonZero_New_Infections'] )
-    return mean_fraction, median[1]
+    def sigmoid(x, L, k, x0, b):
+        return L / (1 + np.exp(-k * (x - x0))) + b
 
+    initial_guess = [ 1.10907949, -1.78066486, 4.56063481, -0.08648216]
+
+    popt, pcov = curve_fit(sigmoid, np.log10(sorted_df["Population"]), sorted_df['Fraction_NonZero_New_Infections'], p0=initial_guess)
+    sig_slope = popt[1]
+    
+    median = get_median( pops_df["Population"], sorted_df['Fraction_NonZero_New_Infections'] )
+    return mean_fraction, median[1], sig_slope
 
 
 def analyze():
@@ -94,12 +101,12 @@ def analyze():
     # Calculate the average number of new infections in London per year
     average_new_infections_per_year_london = total_new_infections_london / num_years
 
-    ccs_bigcity_mean, ccs_median = analyze_ccs()
+    ccs_bigcity_mean, ccs_median, sig_slope = analyze_ccs()
 
     # Create a DataFrame with the metric and its value
     data = {
-        "metric": ["mean_new_infs_per_year", "mean_new_infs_per_year_london", "mean_ccs_fraction_big_cities", "ccs_median_fraction" ],
-        "value": [average_new_infections_per_year, average_new_infections_per_year_london, ccs_bigcity_mean, ccs_median ]
+        "metric": ["mean_new_infs_per_year", "mean_new_infs_per_year_london", "mean_ccs_fraction_big_cities", "ccs_median_fraction", "sigmoid_slope" ],
+        "value": [average_new_infections_per_year, average_new_infections_per_year_london, ccs_bigcity_mean, ccs_median, sig_slope ]
     }
     report_df = pd.DataFrame(data)
 
