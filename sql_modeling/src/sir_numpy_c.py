@@ -489,9 +489,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
         # Are inf and sus fractions or totals? fractions
         new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
         sorted_items = sorted(inf.items())
-        inf_np = np.array([np.float32(value) for _, value in sorted_items])
-        #print( f"inf_np = {inf_np}." )
-        sus_np = np.array([np.float32(value) for value in sus.values()])
+        # This code is when inf and sus are fractions; moving to counts
+        #inf_np = np.array([np.float32(value) for _, value in sorted_items])
+        #sus_np = np.array([np.float32(value) for value in sus.values()])
+        # counts
+        inf_np = np.array([value for _, value in sorted_items])
+        sus_np = np.array([value for value in sus.values()])
+
         tot_np = np.array([np.uint32(value) for value in totals.values()])
 
         sm = kwargs.get('seasonal_multiplier')
@@ -504,8 +508,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
                 len( inf ),
                 data['node'],
                 data['incubation_timer'],
-                (inf_np*tot_np).astype( np.uint32 ),
-                (sus_np*tot_np).astype( np.uint32 ),
+                # fractions
+                #(inf_np*tot_np).astype( np.uint32 ),
+                #(sus_np*tot_np).astype( np.uint32 ),
+                # counts
+                inf_np,
+                sus_np,
+
                 tot_np,
                 new_infections,
                 bi * inf_multiplier
