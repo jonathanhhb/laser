@@ -92,8 +92,8 @@ update_ages_lib.calculate_new_infections.argtypes = [
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # nodes
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # inf_counts
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # sus_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # inf_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # sus_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # tot_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
@@ -511,8 +511,8 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
                 len( inf ),
                 data['node'],
                 data['incubation_timer'],
-                inf_np,
-                sus_np,
+                (inf_np*tot_np).astype( np.uint32 ),
+                (sus_np*tot_np).astype( np.uint32 ),
                 tot_np,
                 new_infections,
                 bi * inf_multiplier
