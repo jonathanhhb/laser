@@ -146,14 +146,14 @@ void calculate_new_infections(
     int num_nodes,
     uint32_t * node,
     unsigned char  * incubation_timers,
-    float * infected_fractions,
-    float * susceptible_fractions, // also fractions
+    uint32_t * infected_counts,
+    uint32_t * susceptible_counts,
     uint32_t * totals,
     uint32_t * new_infs_out,
     float base_inf
 ) {
     // We need number of infected not incubating
-    float exposed_counts_by_bin[ num_nodes ];
+    unsigned int exposed_counts_by_bin[ num_nodes ];
     memset( exposed_counts_by_bin, 0, sizeof(exposed_counts_by_bin) );
 
     // We are not yet counting E in our regular report, so we have to count them here.
@@ -161,28 +161,30 @@ void calculate_new_infections(
     for (int i = start_idx; i <= end_idx; ++i) {
         if( incubation_timers[i] >= 1 ) {
             exposed_counts_by_bin[ node[ i ] ] ++;
-            // printf( "DEBUG: incubation_timers[ %d ] = %f.\n", i, incubation_timers[i] );
+            //printf( "DEBUG: exposed_counts_by_bin[ %d ] = %d.\n", i, exposed_counts_by_bin[node[i]] );
+            //printf( "DEBUG: incubation_timers[ %d ] = %d.\n", i, incubation_timers[i] );
         }
     }
 
     // new infections = Infected frac * infectivity * susceptible frac * pop
     for (int i = 0; i < num_nodes; ++i) {
-        //printf( "exposed_counts_by_bin[%d] = %f.\n", i, exposed_counts_by_bin[i] );
-        exposed_counts_by_bin[ i ] /= totals[ i ];
-        if( exposed_counts_by_bin[ i ] > infected_fractions[ i ] )
+        /*if( exposed_counts_by_bin[i] > 0 ) {
+            printf( "exposed_counts_by_bin[%d] = %d.\n", i, exposed_counts_by_bin[i] );
+        }*/
+        //exposed_counts_by_bin[ i ] /= totals[ i ];
+        if( exposed_counts_by_bin[ i ] > infected_counts[ i ] )
         {
-            printf( "Exposed should never be > infection.\n" );
-            printf( "node = %d, exposed = %f, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infected_fractions[ i ]*totals[i] );
-            exposed_counts_by_bin[ i ] = infected_fractions[ i ]; // HACK: Maybe an exposed count is dead?
+            printf( "ERROR: Exposed should never be > infection.\n" );
+            printf( "node = %d, exposed = %d, infected = %d.\n", i, exposed_counts_by_bin[ i ], infected_counts[ i ] );
+            //printf( "node = %d, exposed = %d, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infected_counts[ i ]*totals[i] );
+            exposed_counts_by_bin[ i ] = infected_counts[ i ]; // HACK: Maybe an exposed count is dead?
             //abort();
         }
-        infected_fractions[ i ] -= exposed_counts_by_bin[ i ];
-        //printf( "infected_fractions[%d] = %f\n", i, infected_fractions[i] );
-        float foi = infected_fractions[ i ] * base_inf;
-        //assert( foi >= 0 );
-        //printf( "foi[%d] = %f\n", i, foi );
-        new_infs_out[ i ] = (int)( foi * susceptible_fractions[ i ] * totals[i] );
-        //printf( "DEBUG: new infs[%d] = foi(%f) * susceptible_fractions(%f) = %d.\n", i, foi, susceptible_fractions[i], new_infs_out[i] );
+        infected_counts[ i ] -= exposed_counts_by_bin[ i ];
+        float foi = infected_counts[ i ] * base_inf;
+        new_infs_out[ i ] = (int)( foi * susceptible_counts[ i ] / totals[i] );
+        //printf( "DEBUG: new infs[node=%d] = infected_counts(%f) * base_inf(%f) * susceptible_counts(%f) / pop(%d) = %d.\n",
+               //i, infected_counts[i], base_inf, susceptible_counts[i], totals[i], new_infs_out[i] );
     }
 }
 
@@ -200,6 +202,10 @@ void handle_new_infections(
     int num_eligible_agents
 ) {
     //printf( "DEBUG: hni: creating %d new infections in node %d from %d susceptibles.\n", new_infections, node, num_eligible_agents );
+    if( new_infections == 0 )
+    {
+        return;
+    }
     assert( new_infections > 0 );
     if( num_eligible_agents == 0 )
     {
@@ -298,6 +304,9 @@ void* worker(void* arg) {
     printf( "args->num_eligible_agents[0] = %d.\n", args->num_eligible_agents );
     */
     // Call the worker function with the provided arguments
+    if( args->new_infections == 0 ) {
+        return NULL;
+    }
     handle_new_infections(
         args->start_idx,
         args->end_idx,
