@@ -71,8 +71,10 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         # The core transmission part begins
         if timestep>settings.burnin_delay:
             new_infections = list()
-            if sum( fractions["I"].values() ) > 0:
-                new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_multiplier=sm, base_infectivity=bi )
+            #if sum( fractions["I"].values() ) > 0:
+            if sum( counts["I"].values() ) > 0:
+                #new_infections = model.calculate_new_infections( ctx, fractions["I"], fractions["S"], totals, timestep, seasonal_multiplier=sm, base_infectivity=bi )
+                new_infections = model.calculate_new_infections( ctx, counts["I"], counts["S"], totals, timestep, seasonal_multiplier=sm, base_infectivity=bi )
                 report.new_infections = new_infections 
             #print( f"new_infections=\n{new_infections}" )
 
@@ -88,10 +90,13 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
         # if we have had total fade-out, inject imports
+        big_cities=[99,507,492,472,537]
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
-            print( f"Injecting {settings.import_cases} new cases into node {settings.num_nodes-1}." )
-            for node in range(settings.num_nodes):
-                model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node )
+            #for node in range(settings.num_nodes):
+            for node in big_cities:
+                print( f"ELIMINATION Detected: Reeseding: Injecting {settings.import_cases} new cases into node {node}." )
+            #    model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node )
+            model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 )
 
         # We almost certainly won't waste time updating everyone's ages every timestep but this is 
         # here as a placeholder for "what if we have to do simple math on all the rows?"

@@ -148,9 +148,9 @@ void calculate_new_infections(
     unsigned char  * incubation_timers,
     uint32_t * infected_counts,
     uint32_t * susceptible_counts,
-    uint32_t * totals,
-    uint32_t * new_infs_out,
-    float base_inf
+    uint32_t * totals, // total node populations
+    uint32_t * new_infs_out, // output
+    float base_inf // another input :(
 ) {
     // We need number of infected not incubating
     unsigned int exposed_counts_by_bin[ num_nodes ];
@@ -168,10 +168,6 @@ void calculate_new_infections(
 
     // new infections = Infected frac * infectivity * susceptible frac * pop
     for (int i = 0; i < num_nodes; ++i) {
-        /*if( exposed_counts_by_bin[i] > 0 ) {
-            printf( "exposed_counts_by_bin[%d] = %d.\n", i, exposed_counts_by_bin[i] );
-        }*/
-        //exposed_counts_by_bin[ i ] /= totals[ i ];
         if( exposed_counts_by_bin[ i ] > infected_counts[ i ] )
         {
             printf( "ERROR: Exposed should never be > infection.\n" );
@@ -180,8 +176,8 @@ void calculate_new_infections(
             exposed_counts_by_bin[ i ] = infected_counts[ i ]; // HACK: Maybe an exposed count is dead?
             //abort();
         }
-        infected_counts[ i ] -= exposed_counts_by_bin[ i ];
-        float foi = infected_counts[ i ] * base_inf;
+        float infectious_count = infected_counts[ i ] - exposed_counts_by_bin[ i ];
+        float foi = infectious_count * base_inf;
         new_infs_out[ i ] = (int)( foi * susceptible_counts[ i ] / totals[i] );
         //printf( "DEBUG: new infs[node=%d] = infected_counts(%f) * base_inf(%f) * susceptible_counts(%f) / pop(%d) = %d.\n",
                //i, infected_counts[i], base_inf, susceptible_counts[i], totals[i], new_infs_out[i] );
