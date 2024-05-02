@@ -178,8 +178,8 @@ void calculate_new_infections(
         }
         float infectious_count = infected_counts[ i ] - exposed_counts_by_bin[ i ];
         float foi = infectious_count * base_inf;
-        new_infs_out[ i ] = (int)( foi * susceptible_counts[ i ] / totals[i] );
-        //printf( "DEBUG: new infs[node=%d] = infected_counts(%f) * base_inf(%f) * susceptible_counts(%f) / pop(%d) = %d.\n",
+        new_infs_out[ i ] = (int)round( foi * susceptible_counts[ i ] / totals[i] );
+        //printf( "DEBUG: new infs[node=%d] = infected_counts(%d) * base_inf(%f) * susceptible_counts(%d) / pop(%d) = %d.\n",
                //i, infected_counts[i], base_inf, susceptible_counts[i], totals[i], new_infs_out[i] );
     }
 }
@@ -246,7 +246,7 @@ void handle_new_infections(
         //printf( "Selecting %d new infectees by skipping through %d candidates %d at a time.\n", new_infections, num_eligible_agents, step );
         for (i = 0; i < num_eligible_agents && selected_count < new_infections; i += step) {
             unsigned long int selected_id = selected_indices[i];
-            assert( selected_id > 0 );
+            //assert( selected_id > 0 ); // this can be true
             //printf( "DEBUG: Checking if selected_id (%ld) is >= start_idx(%ld).\n", selected_id, start_idx );
             assert( selected_id >= start_idx );
             //printf( "DEBUG: Checking if selected_id (%ld) is <= end_idx(%ld).\n", selected_id, end_idx );

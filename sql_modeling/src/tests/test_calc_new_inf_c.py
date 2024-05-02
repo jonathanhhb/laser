@@ -2,7 +2,9 @@ import ctypes
 import numpy as np
 import unittest
 import memory_profiler
+import pdb
 
+beta = 2.4  # Transmission rate
 # Load the C library
 lib = ctypes.CDLL("./update_ages.so")
 lib.calculate_new_infections.argtypes = [
@@ -11,8 +13,8 @@ lib.calculate_new_infections.argtypes = [
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # nodes
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # inf_counts
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # sus_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # inf_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # sus_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # tot_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
@@ -30,6 +32,63 @@ lib.handle_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     ctypes.c_int, # sus number for node
 ]
+
+def run_ref_model():
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import sys
+    from collections import deque
+
+    # Parameters
+    population = 1e6  # Total population
+    cbr = 17.5  # Crude birth rate per 1000 people per year
+
+    incubation_period = 7  # Incubation period in days
+    infectious_period = 7  # Infectious period in days
+    simulation_days = 7300  # Number of days to simulate
+
+    # Calculate births per day
+    births_per_day = int((population / 1000) * (cbr / 365))
+
+    # Initial values
+    E_queue = deque([1000] * incubation_period)  # Exposed individuals queue
+    I_queue = deque([0] * infectious_period)  # Infectious individuals queue (seeded outbreak)
+    S = [int(population/(beta*infectious_period))]
+    R = [int(population - S[0] - sum(E_queue) - sum(I_queue))]
+
+    # Make reporting lists for E and I since we're modeling with queues
+    E_reporting = [sum(E_queue )]
+    I_reporting = [sum(I_queue )]
+    NI = [0]
+
+    # Simulation
+    for _ in range(1, simulation_days):
+        # progress infections: E->I
+        new_infections = E_queue.pop()
+        # Push new infections into the infectious queue
+        I_queue.appendleft(new_infections)
+        # Update recovered population: I->R
+        R.append(R[-1] + I_queue.pop())
+
+        # Calculate new exposures
+        new_exposures = int(np.round(beta * sum(I_queue) * S[-1] / population))
+        #print( f"new_exposures = beta ({beta} * Infected ({sum(I_queue)}) * Susceptible ({S[-1]}) / population ({population}) )" )
+        # Calculate new infections (from the exposed population)
+
+        # Push new exposures into the exposed queue
+        E_queue.appendleft(new_exposures)
+
+        # Update susceptible population, inc VD.
+        S.append(S[-1] - new_exposures + births_per_day)
+
+        population += births_per_day
+
+        E_reporting.append( sum(E_queue ) )
+        I_reporting.append( sum(I_queue ) )
+        NI.append(new_exposures)
+
+    return S, E_reporting, I_reporting, R, NI
+
 class TestHandleNewInfections(unittest.TestCase):
     def test_no_eligible_agents(self):
         """
@@ -321,6 +380,62 @@ class TestHandleNewInfections(unittest.TestCase):
         # Check for memory leak
         memory_leak = post_memory - pre_memory
         self.assertLessEqual(memory_leak, 0, "Memory leak detected")
+
+    def test_calculate_new_infections(self):
+        """
+        Test case to confirm that calculate_new_infections function returns same numbers of new
+        infections across entire simulation as a reference model.
+        """
+        # Define parameters
+        n = 1
+        starting_index = 0  # Example starting index
+        base_inf = beta
+
+        # Call run_ref_model to get reference results
+        S, E, I, R, NI = run_ref_model()
+        
+        sim_length = len(S)
+
+        # Create arrays for inputs and outputs
+        nodes = np.zeros(n, dtype=np.uint32)
+        inf_counts = np.zeros(n, dtype=np.uint32)
+        sus_counts = np.zeros(n, dtype=np.uint32)
+        tot_counts = np.zeros(n, dtype=np.uint32)
+        new_infections = np.zeros(n, dtype=np.uint32)
+
+        # Call calculate_new_infections for each timestep
+        for timestep in range(1,sim_length):
+            #print( f"{timestep}: {S[timestep]}, {E[timestep]}, {I[timestep]}, {R[timestep]}" )
+            sus_counts[0] = S[timestep-1]
+
+            # Update the exposed and infectious counts
+            inf_counts[0] = I[timestep]
+
+            num_si = E[0]
+            incubation_timer = np.zeros(num_si, dtype=np.uint8)
+            tot_counts[0] = S[timestep-1] + E[timestep-1] + I[timestep-1] + R[timestep-1]
+
+            # Call the ctypes function
+            lib.calculate_new_infections(
+                    0, 
+                    num_si-1,
+                    n,
+                    nodes,
+                    incubation_timer,
+                    inf_counts,
+                    sus_counts,
+                    tot_counts,
+                    new_infections,
+                    base_inf)
+
+            # Get the number of new infections from new_infections array
+            new_infections_timestep = np.sum(new_infections)
+
+            # Compare with reference results
+            #self.assert( new_infections_timestep == ref_results[timestep], f"Results mismatch at timestep {timestep}" )
+            #print( f"new_infections_timestep = {new_infections_timestep}\n" )
+            #print( f"I[{timestep}] = {NI[timestep]}\n" )
+            self.assertAlmostEqual( new_infections_timestep, NI[timestep], delta=10 ) # , "Results mismatch at timestep " + str(timestep)
 
 
 if __name__ == "__main__":
