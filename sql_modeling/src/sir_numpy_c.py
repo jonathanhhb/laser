@@ -76,7 +76,6 @@ update_ages_lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
 ]
 update_ages_lib.progress_immunities.argtypes = [
@@ -436,7 +435,6 @@ def progress_infections( data, timestep, num_infected ):
             data['infected'],
             data['immunity_timer'],
             data['immunity'],
-            data['node'],
             recovered_idxs
         ) # ctypes.byref(integers_ptr))
         for rec_idx in range( num_recovereds ):
@@ -535,6 +533,11 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
     return new_infections 
 
 def handle_transmission_by_node( data, new_infections, susceptible_counts, node=0 ):
+    # print( f"DEBUG: New Infections: {new_infections}" )
+    # print( f"DEBUG: susceptible_counts: {susceptible_counts}" )
+    if new_infections[node]>susceptible_counts[node]:
+        raise ValueError( f"ERROR: Asked for {new_infections[node]} new infections but only {susceptible_counts[node]} susceptibles exist in node {node}." )
+
     # Step 5: Update the infected flag for NEW infectees
     def handle_new_infections_c(new_infections):
         if new_infections > 1e6: # arbitrary "too large" value:
@@ -709,7 +712,8 @@ def distribute_interventions( data, timestep ):
     return data
 
 def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
-    import_dict = { import_node: import_cases }
+    #import_dict = { import_node: import_cases }
+    import_dict = { import_node: int(0.1*sus[import_node]) }
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):
