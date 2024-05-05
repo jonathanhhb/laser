@@ -56,29 +56,21 @@ size_t progress_infections(
     bool* infected,
     signed char * immunity_timer,
     bool* immunity,
-    int* node,
     uint32_t * recovered_idxs
 ) {
     unsigned long int activators = 0;
     unsigned recovered_counter = 0;
-    //printf( "progress_infections: traversing from idx %d to %d.\n", start_idx, end_idx );
 
     for (int i = start_idx; i <= end_idx; ++i) {
         if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
             // Incubation timer: decrement for each person
             if (incubation_timer[i] >= 1) {
                 incubation_timer[i] --;
-                /*if( incubation_timer[i] == 0 )
-                {
-                    //printf( "Individual %d activating; incubation_timer= %f.\n", i, incubation_timer[i] );
-                    activators++;
-                }*/
             }
 
             // Infection timer: decrement for each infected person
             if (infection_timer[i] >= 1) {
                 infection_timer[i] --;
-
 
                 // Some people clear
                 if ( infection_timer[i] == 0) {
@@ -230,11 +222,17 @@ void handle_new_infections(
                 }
             }
         }
+        if( count < num_eligible_agents )
+        {
+            printf( "ERROR: count = %d, num_eligible_agents = %d.\n", count, num_eligible_agents  );
+            abort();
+        }
         if( count == 0 ) {
             printf( "WARNING: Found no susceptibles for some reason. Not infecting anyone.\n" );
+            abort();
             return;
         }
-        num_eligible_agents = count; // ask me about this.
+        //num_eligible_agents = count; // ask me about this.
 
         int i, step, selected_count = 0;
         // Calculate the step size
