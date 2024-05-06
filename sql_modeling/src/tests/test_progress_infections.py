@@ -93,6 +93,45 @@ class TestProgressInfections(unittest.TestCase):
         recovered_ids = set(recovered_idxs[:result])
         self.assertSetEqual(expected_ids, recovered_ids)
 
+    def test_some_recoveries2(self):
+        """
+        Test case to verify the behavior of the progress_infections function when some individuals recover.
+
+        This test checks whether the progress_infections function behaves correctly when some individuals in the specified range
+        recover from infection. It sets up the input parameters to simulate a scenario where certain individuals recover after
+        their infection timer reaches zero. The function is then called with these parameters, and the result is checked to ensure
+        that the correct number of individuals have recovered, and the recovered indices are correctly updated.
+
+        Test Assertions:
+            - The result returned by the progress_infections function should indicate the number of individuals who have recovered.
+            - The recovered_idxs array should contain the indices of individuals who have recovered, with non-zero values indicating recovery.
+
+        Test Design:
+            1. Set up the input parameters to represent a scenario where some individuals recover from infection.
+            2. Call the progress_infections function with these parameters.
+            3. Assert that the result returned by the function corresponds to the number of individuals who have recovered.
+            4. Assert that the recovered_idxs array contains the indices of individuals who have recovered, with non-zero values indicating recovery.
+
+        """
+        start_idx = 1
+        end_idx = 10
+        infection_timer = np.array([0, 0, 1, 0, 1, 2, 0, 1, 0, 14, 5, 1], dtype=np.uint8)
+        incubation_timer = np.zeros(12, dtype=np.uint8)
+        infected = np.array([False, False, True, False, True, True, False, True, False, True, True, True], dtype=bool)
+        immunity_timer = np.zeros(12, dtype=np.int8)
+        immunity = np.zeros(12, dtype=bool)
+        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        # Call the C function
+        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+
+        # Assert that some recoveries occurred
+        self.assertEqual(result, 3)
+        self.assertTrue(np.all(recovered_idxs[:1] != 0))
+        expected_ids = set( { 2,4,7 } )
+        recovered_ids = set(recovered_idxs[:result])
+        self.assertSetEqual(expected_ids, recovered_ids)
+
     def test_all_recoveries(self):
         """
         test that all individuals recover when their infection timers reach 0.
