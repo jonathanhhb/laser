@@ -77,7 +77,6 @@ update_ages_lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
 ]
 update_ages_lib.progress_immunities.argtypes = [
@@ -93,8 +92,8 @@ update_ages_lib.calculate_new_infections.argtypes = [
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # nodes
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # inf_counts
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # sus_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # inf_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # sus_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # tot_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
@@ -429,7 +428,6 @@ def progress_infections( data, timestep, num_infected ):
             data['infected'],
             data['immunity_timer'],
             data['immunity'],
-            data['node'],
             recovered_idxs
         ) # ctypes.byref(integers_ptr))
         for rec_idx in range( num_recovereds ):
@@ -489,9 +487,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
         # Are inf and sus fractions or totals? fractions
         new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
         sorted_items = sorted(inf.items())
-        inf_np = np.array([np.float32(value) for _, value in sorted_items])
-        #print( f"inf_np = {inf_np}." )
-        sus_np = np.array([np.float32(value) for value in sus.values()])
+        # This code is when inf and sus are fractions; moving to counts
+        #inf_np = np.array([np.float32(value) for _, value in sorted_items])
+        #sus_np = np.array([np.float32(value) for value in sus.values()])
+        # counts
+        inf_np = np.array([value for _, value in sorted_items])
+        sus_np = np.array([value for value in sus.values()])
+
         tot_np = np.array([np.uint32(value) for value in totals.values()])
 
         sm = kwargs.get('seasonal_multiplier')
@@ -504,8 +506,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
                 len( inf ),
                 data['node'],
                 data['incubation_timer'],
+                # fractions
+                #(inf_np*tot_np).astype( np.uint32 ),
+                #(sus_np*tot_np).astype( np.uint32 ),
+                # counts
                 inf_np,
                 sus_np,
+
                 tot_np,
                 new_infections,
                 bi * inf_multiplier
@@ -519,6 +526,11 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
     return new_infections 
 
 def handle_transmission_by_node( data, new_infections, susceptible_counts, node=0 ):
+    # print( f"DEBUG: New Infections: {new_infections}" )
+    # print( f"DEBUG: susceptible_counts: {susceptible_counts}" )
+    if new_infections[node]>susceptible_counts[node]:
+        raise ValueError( f"ERROR: Asked for {new_infections[node]} new infections but only {susceptible_counts[node]} susceptibles exist in node {node}." )
+
     # Step 5: Update the infected flag for NEW infectees
     def handle_new_infections_c(new_infections):
         if new_infections > 1e6: # arbitrary "too large" value:
@@ -693,7 +705,8 @@ def distribute_interventions( data, timestep ):
     return data
 
 def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
-    import_dict = { import_node: import_cases }
+    #import_dict = { import_node: import_cases }
+    import_dict = { import_node: int(0.1*sus[import_node]) }
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):
