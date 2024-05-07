@@ -25,7 +25,7 @@ duration = 20*365
 #base_infectivity = 0.9e7 # ccs = 55-140k
 #base_infectivity = 2e7 # ccs = 55-140k
 #base_infectivity = 1e7 # ccs = 30-55k
-base_infectivity = 240
+base_infectivity = 2
 # cbr=crude bith rate
 cbr=17.5
 cbr_file="cbrs.csv"
@@ -38,13 +38,13 @@ campaign_day=6000000
 campaign_coverage=0.75
 
 campaign_node=15
-migration_fraction=0.2
+migration_fraction=0.02
 migration_interval=7
 mortality_interval=1 # 30
 fertility_interval=1 # 7
 ria_interval=700000
 burnin_delay=730
-import_cases=10
+import_cases=2000
 
 #import numpy as np
 #infectivity_multiplier = np.concatenate( (np.linspace( 1,2,366//2), np.linspace( 2,1,366//2)) )

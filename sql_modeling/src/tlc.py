@@ -91,11 +91,12 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         # if we have had total fade-out, inject imports
         big_cities=[99,507,492,472,537]
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
-            #for node in range(settings.num_nodes):
-            for node in big_cities:
-                print( f"ELIMINATION Detected: Reeseding: Injecting {settings.import_cases} new cases into node {node}." )
-            #    model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node )
-            model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 )
+            # what if we just seed in London?
+            #model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 ) 
+            for node in range(settings.num_nodes):
+            #for node in big_cities:
+                print( f"ELIMINATION Detected: Reeseding: Injecting {settings.import_cases} new cases into node {node}." ) 
+                model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node ) 
 
         # We almost certainly won't waste time updating everyone's ages every timestep but this is 
         # here as a placeholder for "what if we have to do simple math on all the rows?"

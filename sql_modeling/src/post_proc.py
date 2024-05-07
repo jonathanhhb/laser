@@ -79,8 +79,12 @@ def analyze_ccs():
 
     initial_guess = [ 1.10907949, -1.78066486, 4.56063481, -0.08648216]
 
-    popt, pcov = curve_fit(sigmoid, np.log10(sorted_df["Population"]), sorted_df['Fraction_NonZero_New_Infections'], p0=initial_guess)
-    sig_slope = popt[1]
+    try:
+        popt, pcov = curve_fit(sigmoid, np.log10(sorted_df["Population"]), sorted_df['Fraction_NonZero_New_Infections'], p0=initial_guess)
+        sig_slope = popt[1]
+    except Exception as ex:
+        print( str( ex ) )
+        sig_slope = -5
     
     median = get_median( pops_df["Population"], sorted_df['Fraction_NonZero_New_Infections'] )
     def save_and_plot():

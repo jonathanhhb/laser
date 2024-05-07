@@ -704,7 +704,7 @@ def distribute_interventions( data, timestep ):
         ria_9mo( settings.campaign_coverage )
     return data
 
-def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
+def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ): 
     #import_dict = { import_node: import_cases }
     import_dict = { import_node: int(0.1*sus[import_node]) }
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
