@@ -40,6 +40,9 @@ fits.npy: eula_pops_20yr_noaging.csv
 run:
 	python3 tlc.py
 
+setup:
+	./setup.sh
+
 # Clean target to remove generated files
 clean:
 	rm -f $(UPDATE_AGES_SO) $(EULA_DB) $(POP_SEEDED_CSV) $(MODELED_POP_CSV)
