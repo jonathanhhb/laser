@@ -40,7 +40,7 @@ def run_ref_model():
     from collections import deque
 
     # Parameters
-    population = 1e6  # Total population
+    population = 1.2e5 # 6  # Total population
     cbr = 17.5  # Crude birth rate per 1000 people per year
 
     incubation_period = 7  # Incubation period in days
@@ -51,7 +51,7 @@ def run_ref_model():
     births_per_day = int((population / 1000) * (cbr / 365))
 
     # Initial values
-    E_queue = deque([1000] * incubation_period)  # Exposed individuals queue
+    E_queue = deque([393] + [0] * (incubation_period-1))  # Exposed individuals queue
     I_queue = deque([0] * infectious_period)  # Infectious individuals queue (seeded outbreak)
     S = [int(population/(beta*infectious_period))]
     R = [int(population - S[0] - sum(E_queue) - sum(I_queue))]
@@ -72,7 +72,7 @@ def run_ref_model():
 
         # Calculate new exposures
         new_exposures = int(np.round(beta * sum(I_queue) * S[-1] / population))
-        #print( f"new_exposures = beta ({beta} * Infected ({sum(I_queue)}) * Susceptible ({S[-1]}) / population ({population}) )" )
+        #print( f"new_exposures = beta ({beta} * Infected ({sum(I_queue)}) * Susceptible ({S[-1]}) / population ({population}) ) = {new_exposures}" )
         # Calculate new infections (from the exposed population)
 
         # Push new exposures into the exposed queue
@@ -433,11 +433,14 @@ class TestHandleNewInfections(unittest.TestCase):
 
             # Compare with reference results
             #self.assert( new_infections_timestep == ref_results[timestep], f"Results mismatch at timestep {timestep}" )
-            #print( f"new_infections_timestep = {new_infections_timestep}\n" )
-            #print( f"I[{timestep}] = {NI[timestep]}\n" )
+            #print( f"New Infections [test] @ {timestep} = {new_infections_timestep}\n" )
+            #print( f"New Infections [ref][ @ {timestep} = {NI[timestep]}\n" )
             self.assertAlmostEqual( new_infections_timestep, NI[timestep], delta=10 ) # , "Results mismatch at timestep " + str(timestep)
 
 
+# TBD: ccs:
+# 1) beta=1, cbr=30, threshold pop=200k
+# 2) beta=2, cbr=17, trehshold pop=390k
 if __name__ == "__main__":
     unittest.main()
 
