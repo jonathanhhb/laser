@@ -21,7 +21,7 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
     totals = np.array([total[key] for key in sorted(total.keys(), reverse=True)])
     prev = infecteds/totals
     print( f"T={timestep}" )
-    #print( list( sparklines( prev ) ) )
+    print( list( sparklines( prev ) ) )
     # Write the counts to the CSV file
     #print( f"T={timestep},\nS={susceptible_counts},\nI={infected_counts},\nR={recovered_counts}" )
     if write_report:
