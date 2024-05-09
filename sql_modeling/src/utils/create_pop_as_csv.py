@@ -3,7 +3,7 @@ import csv
 import gzip
 import sys
 sys.path.append( "." )
-import settings
+import demographics_settings as settings
 from sir_sql import initialize_database
 
 # 1) Create a full population in a SQLite db in memory
@@ -36,6 +36,7 @@ with open(csv_output_file, 'rb') as f_in:
 printf( "Compressed." )
 
 get_eula_query = f"SELECT node, CAST(age as INT) AS age, COUNT(*) AS total_individuals FROM agents WHERE age>={settings.eula_age} GROUP BY node, CAST(age as INT) ORDER BY node, age"
+
 cursor.execute( get_eula_query )
 rows = cursor.fetchall()
 
