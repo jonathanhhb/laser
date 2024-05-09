@@ -47,6 +47,9 @@ setup:
 clean:
 	rm -f $(UPDATE_AGES_SO) $(EULA_DB) $(POP_SEEDED_CSV) $(MODELED_POP_CSV)
 
+test:
+	PYTHONPATH=$PYTHONPATH:../src python3 -m unittest discover -s ../tests -p 'test_*.py' -v
+
 # Phony targets
 .PHONY: all clean
 

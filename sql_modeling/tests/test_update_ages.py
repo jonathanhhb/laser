@@ -6,10 +6,10 @@ import os
 
 # Load the shared object (.so) library
 # Get the path to the .so file in the parent directory
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-so_file = os.path.join(parent_dir, "update_ages.so")
+#parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+#so_file = os.path.join(parent_dir, "update_ages.so")
 
-lib = CDLL(so_file)
+lib = CDLL("./update_ages.so")
 
 # Define the function signature
 lib.update_ages.argtypes = [
