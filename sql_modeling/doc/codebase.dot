@@ -9,12 +9,12 @@ digraph codebase {
     modeled_population_file [label="<modeled_population_file>.csv.gz", color=lightblue];
     fits_npy [label="fits.npy", color=lightblue];
     makefile [label="makefile", color=red];
-    eula_py [label="model_numpy/eula.py", color=lightblue];
+    eula_py [label="model_numpy/eula.py", color=green];
     report_py [label="report.py", color=green];
     settings_py [label="settings.py", color=green];
     sir_numpy_py [label="sir_numpy.py", color=green];
     sir_numpy_c_py [label="sir_numpy_c.py", color=green];
-    sir_sql_py [label="sir_sql.py", color=green];
+    sir_sql_py [label="sir_sql.py", color=lightgreen];
     tlc_py [label="tlc.py", color=green];
     update_ages_so [label="update_ages.so", color=green];
 
@@ -25,11 +25,11 @@ digraph codebase {
 
     // Define relationships
     makefile -> tlc_py
-    tlc_py -> { sir_numpy_py report_py };
+    tlc_py -> { sir_numpy_c_py report_py };
     tlc_py -> settings_py;
     sir_numpy_py -> settings_py;
-    sir_numpy_py -> sir_sql_py;
-    sir_numpy_py -> sir_numpy_c_py;
+    sir_numpy_py -> sir_sql_py [style=dotted];
+    sir_numpy_c_py -> sir_numpy_py;
     sir_numpy_py -> births_csv;
     sir_numpy_py -> cbrs_csv;
     sir_numpy_c_py -> attraction_probabilities_csv;
