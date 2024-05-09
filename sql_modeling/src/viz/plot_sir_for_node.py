@@ -9,9 +9,10 @@ def plot_sir_curves(csv_file, node_id=0):
     node_data = df[df['Node'] == node_id]
 
     # Plot SIR curves
-    plt.plot(node_data['Timestep'], node_data['Susceptible'], label='Susceptible')
-    plt.plot(node_data['Timestep'], node_data['Infected'], label='Infected')
-    plt.plot(node_data['Timestep'], node_data['Recovered'], label='Recovered')
+    #plt.plot(node_data['Timestep'], node_data['Susceptible'], label='Susceptible')
+    #plt.plot(node_data['Timestep'], node_data['Infected'], label='Infected')
+    #plt.plot(node_data['Timestep'], node_data['Recovered'], label='Recovered')
+    plt.plot(node_data['Timestep'], node_data['New Infections'], label='Incidence')
 
     # Set plot labels and title
     plt.xlabel('Timestamp')

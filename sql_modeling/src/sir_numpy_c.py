@@ -1,12 +1,15 @@
 import random
 import csv
 import numpy as np
+import pandas as pd
 import concurrent.futures
 from functools import partial
 import ctypes
 import gzip
 import pdb
 import time
+import pandas as pd
+import gc
 
 import settings
 import report
@@ -27,6 +30,36 @@ s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
 
+# optional function to dump data to disk at any point. A sort-of serialization.
+def dump():
+    import pandas as pd
+    df = pd.DataFrame(data)
+    df.to_csv('temp.csv', index=False)
+
+def load_cbrs():
+    # Read the CSV file into a DataFrame
+    df = pd.read_csv( settings.cbr_file )
+
+    # Initialize an empty dictionary to store the data
+    cbrs_dict = {}
+
+    # Iterate over the rows of the DataFrame
+    for index, row in df.iterrows():
+        # Get the values from the current row
+        elapsed_year = row['Elapsed_Years']
+        node_id = row['ID']
+        cbr = row['CBR']
+
+        # If the year is not already in the dictionary, create a new dictionary for that year
+        if elapsed_year not in cbrs_dict:
+            cbrs_dict[elapsed_year] = []
+        
+        # If the node_id is not already in the dictionary for the current year, add it
+        cbrs_dict[elapsed_year].append( cbr ) # is this guaranteed right order?
+
+    return cbrs_dict
+cbrs = load_cbrs()
+
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
 # Define the function signature
@@ -34,12 +67,6 @@ update_ages_lib.update_ages.argtypes = [
     ctypes.c_size_t,  # start_idx
     ctypes.c_size_t,  # stop_idx
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS')
-]
-update_ages_lib.init_maps.argtypes = [
-    ctypes.c_size_t,  # n
-    ctypes.c_size_t,  # start_idx
-    np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'), # infected
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'), # infection_timer
 ]
 update_ages_lib.progress_infections.restype = ctypes.c_int
 update_ages_lib.progress_infections.argtypes = [
@@ -52,16 +79,6 @@ update_ages_lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
-]
-update_ages_lib.progress_infections2.argtypes = [
-    ctypes.c_size_t,  # n
-    ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # infection_timer
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
-    np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
-    np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
-    ctypes.c_size_t,  # timestep
 ]
 update_ages_lib.progress_immunities.argtypes = [
     ctypes.c_size_t,  # n
@@ -93,7 +110,20 @@ update_ages_lib.handle_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
     ctypes.c_int, # num_new_infections
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
-    ctypes.c_size_t,  # timestep
+    ctypes.c_int, # sus number for node
+]
+update_ages_lib.handle_new_infections_threaded.argtypes = [
+    ctypes.c_uint32, # num_agents
+    ctypes.c_size_t,  # starting index
+    ctypes.c_size_t,  # num_nodes
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
+    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
+    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. new infections to create by node
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
 ]
 update_ages_lib.migrate.argtypes = [
     ctypes.c_uint32, # num_agents
@@ -199,22 +229,6 @@ def load( pop_file ):
     ninemo_tracker_idx = dynamic_eula_idx 
     inf_sus_idx = dynamic_eula_idx 
 
-    def init_maps_np():
-        global infection_queue_map, incubation_queue_map
-        indices = np.where( data['infected'] )[0]
-        reco_times = data['infection_timer'][indices]
-        for reco_time, idx in zip( reco_times, indices ):
-            infection_queue_map[ reco_time ].append( idx )
-        incubation_queue_map[ 3 ] = indices
-    def init_maps_c():
-        update_ages_lib.init_maps(
-            len( data['node'] ),
-            unborn_end_idx,
-            data['infected'],
-            data['infection_timer']
-        )
-    #init_maps_np()
-    #init_maps_c()
     # Now 'columns' is a dictionary where keys are column headers and values are NumPy arrays
 
     def load_attraction_probs():
@@ -327,6 +341,7 @@ def collect_report( data ):
     #print( f"Reporting back SIR counts of\n{susceptible_counts},\n{infected_counts}, and\n{recovered_counts}." ) 
 
     recovered_counts_eula = eula.get_recovereds_by_node()
+    #print( f"Number of recovereds in London now = {eula.eula_dict[507][44]}." )
     for node in eula.eula_dict:
         if node not in recovered_counts:
             recovered_counts[ node ] = 0
@@ -351,9 +366,7 @@ def update_ages( data, totals, timestep ):
 
     global unborn_end_idx
     def births( data, interval ):
-        #data['age'] = 
-        import sir_numpy
-        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+        num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
@@ -472,44 +485,48 @@ def progress_immunities( data ):
     return data
 
 def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
-    # Are inf and sus fractions or totals? fractions
-    new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
-    sorted_items = sorted(inf.items())
-    inf_np = np.array([np.float32(value) for _, value in sorted_items])
-    #print( f"inf_np = {inf_np}." )
-    sus_np = np.array([np.float32(value) for value in sus.values()])
-    tot_np = np.array([np.uint32(value) for value in totals.values()])
-    def dump():
-        import pandas as pd
-        df = pd.DataFrame(data)
-        df.to_csv('temp.csv', index=False)
+    def cni_c():
+        # Are inf and sus fractions or totals? fractions
+        new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
+        sorted_items = sorted(inf.items())
+        inf_np = np.array([np.float32(value) for _, value in sorted_items])
+        #print( f"inf_np = {inf_np}." )
+        sus_np = np.array([np.float32(value) for value in sus.values()])
+        tot_np = np.array([np.uint32(value) for value in totals.values()])
 
-    sm = kwargs.get('seasonal_multiplier', settings.seasonal_multiplier)
-    inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
-    bi = kwargs.get('base_infectivity', settings.base_infectivity)
+        sm = kwargs.get('seasonal_multiplier')
+        inf_multiplier = max(0, 1 + sm * settings.infectivity_multiplier[ min((timestep%365) // 7, 51) ] )
+        bi = kwargs.get('base_infectivity')
+        #print( f"inf_multiplier = {inf_multiplier}" )
+        update_ages_lib.calculate_new_infections(
+                inf_sus_idx, # unborn_end_idx,
+                dynamic_eula_idx,
+                len( inf ),
+                data['node'],
+                data['incubation_timer'],
+                inf_np,
+                sus_np,
+                tot_np,
+                new_infections,
+                bi * inf_multiplier
+            )
+        #print( f"DEBUG: new_infections = {new_infections}." )
+        return new_infections
 
-    #print( f"inf_multiplier = {inf_multiplier}" )
-    update_ages_lib.calculate_new_infections(
-            inf_sus_idx, # unborn_end_idx,
-            dynamic_eula_idx,
-            len( inf ),
-            data['node'],
-            data['incubation_timer'],
-            inf_np,
-            sus_np,
-            tot_np,
-            new_infections,
-            bi * inf_multiplier
-        )
-    #print( f"new_infections = {new_infections}." )
+    new_infections = cni_c()
+    #import sir_numpy as py_model
+    #new_infections = py_model.calculate_new_infections( data, inf, sus, totals )
     return new_infections 
 
-def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
+def handle_transmission_by_node( data, new_infections, susceptible_counts, node=0 ):
     # Step 5: Update the infected flag for NEW infectees
     def handle_new_infections_c(new_infections):
+        if new_infections > 1e6: # arbitrary "too large" value:
+            print( "ERROR: new_infections value probably = -1. Ignore and continue." )
+            return np.zeros(1).astype( np.uint32 )
         new_infection_idxs = np.zeros(new_infections).astype( np.uint32 )
         update_ages_lib.handle_new_infections(
-                unborn_end_idx,
+                unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
                 inf_sus_idx, # dynamic_eula_idx,
                 node,
                 data['node'],
@@ -519,52 +536,59 @@ def handle_transmission_by_node( data, new_infections, timestep, node=0 ):
                 data['infection_timer'],
                 new_infections,
                 new_infection_idxs,
-                timestep
+                susceptible_counts[ node ]
             )
-        # Swap new_infection_idxs from S to S/I idx boundary.
-        #for idx in sorted(new_infection_idxs,reverse=True):
-            #swap_to_dynamic_si( data, idx )
 
         #print( f"New Infection indexes = {new_infection_idxs} in node {node} at {timestep}." )
         #print( f"New Infection ids = {data['id'][new_infection_idxs]}." )
-        def queues_np():
-            # TBD: Create map of new infection timers to infection indices
-            infection_timers = data['infection_timer'][ new_infection_idxs ]
-            recover_times = infection_timers + timestep
-            global infection_queue_map, incubation_queue_map
-            for reco_time, idx in zip( recover_times, new_infection_idxs ):
-                infection_queue_map[ reco_time ].append( idx )
-            incubation_queue_map[ timestep+3 ].extend( new_infection_idxs )
-
         return new_infection_idxs
-        #queues_np()
+
+    def handle_new_infections_np(new_infections):
+        import sir_numpy as py_model
+        return py_model.handle_transmission_by_node( data, new_infections, node )
 
     #print( f"new_infections at node {node} = {new_infections[node]}" )
     niis = handle_new_infections_c(new_infections[node])
-    #print( f"{new_infections} new infections in node {node}." )
     return niis # data
 
-def handle_transmission( data_in, new_infections_in, timestep ):
+def handle_transmission( data_in, new_infections_in, susceptible_counts ):
     # We want to do this in parallel;
     #print( f"DEBUG: New Infections: {new_infections_in}" )
-    htbn = partial( handle_transmission_by_node, data_in, new_infections_in, timestep )
+    """
+    htbn = partial( handle_transmission_by_node, data_in, new_infections_in, susceptible_counts )
     relevant_nodes = [ node_id for node_id in settings.nodes if new_infections_in[ node_id ] > 0 ]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, relevant_nodes))
     """
-    results = []
-    for node in relevant_nodes:
-        results.append( htbn( node=node ) )
-    """
+    new_infection_idxs = np.zeros(sum(new_infections_in)).astype( np.uint32 )
+    update_ages_lib.handle_new_infections_threaded(
+        unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
+        inf_sus_idx, # dynamic_eula_idx,
+        settings.num_nodes,
+        data_in['node'],
+        data_in['infected'],
+        data_in['immunity'],
+        data_in['incubation_timer'],
+        data_in['infection_timer'],
+        new_infections_in,
+        new_infection_idxs,
+        np.array(list(susceptible_counts.values())).astype( np.uint32 )
+    )
+
     # Segregate S from I: Swap new I's out of S group into I group
+    """
     if len( results ) > 0:
         all_new_idxs = []
         for result in results:
             all_new_idxs.extend( result )
         for idx in sorted(all_new_idxs,reverse=True):
             if idx > 0:
+                #print( f"New infection has age {data_in['age'][idx]}" )
                 swap_to_dynamic_si( data_in, idx )
-    
+    """
+    for idx in sorted(new_infection_idxs,reverse=True):
+        if idx > 0:
+            swap_to_dynamic_si( data_in, idx )
     return data_in
 
 def add_new_infections( data ):
@@ -590,7 +614,7 @@ def migrate( data, timestep, **kwargs ):
 
         # Calculate the number of individuals to select (1% of the total infected individuals)
         #num_to_select = int(len(infected_indices) * 0.01)
-        mf = kwargs.get('migration_fraction', settings.migration_fraction)
+        mf = kwargs.get('migration_fraction')
         num_to_select = int(len(infected_indices) * mf)
 
         if num_to_select > 0:
@@ -621,6 +645,9 @@ def migrate( data, timestep, **kwargs ):
                 data['node'])
             """
         #print( "Ending migration..." )
+
+    # forced garbage collection is necessary due to something in handle_new_infections but done here so it's not done every timestep
+    gc.collect()
     return data
 
 def distribute_interventions( data, timestep ):
@@ -665,9 +692,9 @@ def distribute_interventions( data, timestep ):
         ria_9mo( settings.campaign_coverage )
     return data
 
-def inject_cases( ctx, timestep, import_cases=100, import_node=settings.num_nodes-1 ):
+def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
     import_dict = { import_node: import_cases }
-    htbn = partial( handle_transmission_by_node, ctx, import_dict, timestep=timestep, node=import_node )
+    htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):
         swap_to_dynamic_si( ctx, idx )

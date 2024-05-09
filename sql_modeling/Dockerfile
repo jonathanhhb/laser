@@ -25,10 +25,14 @@ COPY src/model_sql/eula.py model_sql/eula.py
 COPY src/post_proc.py .
 RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_modeled.csv.gz
 RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/attraction_probabilities.csv.gz
+RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_cities.csv -O cities.csv
+RUN wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_pops.csv -O pops.csv
 RUN gunzip attraction_probabilities.csv.gz
 COPY src/viz/plot_spatial.py .
 
 COPY service/fits.npy .
+COPY src/cbrs.csv .
+COPY src/births.csv .
 
 CMD ["python", "app.py"]
 
