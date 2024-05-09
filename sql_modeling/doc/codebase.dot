@@ -1,0 +1,53 @@
+digraph codebase {
+    // Define node attributes
+    node [shape=box, style=filled];
+
+    // Define file nodes and their types
+    attraction_probabilities_csv [label="attraction_probabilities.csv", color=lightblue];
+    births_csv [label="births.csv", color=lightblue];
+    cbrs_csv [label="cbrs.csv", color=lightblue];
+    modeled_population_file [label="<modeled_population_file>.csv.gz", color=lightblue];
+    fits_npy [label="fits.npy", color=lightblue];
+    makefile [label="makefile", color=red];
+    eula_py [label="model_numpy/eula.py", color=lightblue];
+    report_py [label="report.py", color=green];
+    settings_py [label="settings.py", color=green];
+    sir_numpy_py [label="sir_numpy.py", color=green];
+    sir_numpy_c_py [label="sir_numpy_c.py", color=green];
+    sir_sql_py [label="sir_sql.py", color=green];
+    tlc_py [label="tlc.py", color=green];
+    update_ages_so [label="update_ages.so", color=green];
+
+    fit_eula_pops_py [label="utils/fit_eula_pops.py", color=yellow];
+    create_attraction_probs [label="utils/create_attraction_probs.py", color=yellow];
+    create_pop_as_csv [label="utils/create_pop_as_csv.py", color=yellow];
+
+
+    // Define relationships
+    makefile -> tlc_py
+    tlc_py -> { sir_numpy_py report_py };
+    tlc_py -> settings_py;
+    sir_numpy_py -> settings_py;
+    sir_numpy_py -> sir_sql_py;
+    sir_numpy_py -> sir_numpy_c_py;
+    sir_numpy_py -> births_csv;
+    sir_numpy_py -> cbrs_csv;
+    sir_numpy_c_py -> attraction_probabilities_csv;
+    sir_numpy_c_py -> eula_py;
+    sir_numpy_c_py -> modeled_population_file;
+    { sir_numpy_c_py report_py } -> settings_py;
+    sir_numpy_c_py -> update_ages_so;
+
+    makefile -> fit_eula_pops_py;
+    fit_eula_pops_py -> fits_npy;
+    eula_py -> fits_npy;
+
+    makefile -> create_pop_as_csv;
+    create_pop_as_csv -> modeled_population_file;
+
+    makefile -> create_attraction_probs;
+    create_attraction_probs -> attraction_probabilities_csv;
+
+    // Add the rest of the relationships
+}
+
