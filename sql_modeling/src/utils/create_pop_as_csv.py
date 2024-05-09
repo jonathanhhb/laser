@@ -1,8 +1,9 @@
 import sqlite3
 import csv
+import gzip
 import sys
 sys.path.append( "." )
-import settings
+import demographics_settings as settings
 from sir_sql import initialize_database
 
 # 1) Create a full population in a SQLite db in memory
@@ -17,13 +18,25 @@ get_all_query = f"SELECT * FROM agents WHERE age<{settings.eula_age} ORDER BY ag
 cursor.execute( get_all_query )
 rows = cursor.fetchall()
 
-
-with open( settings.pop_file, "w", newline='' ) as csvfile:
+csv_output_file = settings.pop_file.strip( ".gz" )
+with open( csv_output_file , "w", newline='' ) as csvfile:
     csv_writer = csv.writer( csvfile )
     csv_writer.writerow( ['id', 'node', 'age', 'infected', 'infection_timer', 'incubation_timer', 'immunity', 'immunity_timer', 'expected_lifespan' ] )
     csv_writer.writerows( rows )
 
-get_eula_query = f"SELECT node, FLOOR(age) AS age, COUNT(*) AS total_individuals FROM agents WHERE age>={settings.eula_age} GROUP BY node, FLOOR(age) ORDER BY node, age"
+print( f"Wrote uncompressed modeled population file as {csv_output_file}. Compressing..." )
+
+# Open the input file in binary read mode
+with open(csv_output_file, 'rb') as f_in:
+    # Open the output file in binary write mode and compress it using gzip
+    with gzip.open(settings.pop_file, 'wb') as f_out:
+        # Read data from the input file and write it to the output file
+        f_out.writelines(f_in)
+
+printf( "Compressed." )
+
+get_eula_query = f"SELECT node, CAST(age as INT) AS age, COUNT(*) AS total_individuals FROM agents WHERE age>={settings.eula_age} GROUP BY node, CAST(age as INT) ORDER BY node, age"
+
 cursor.execute( get_eula_query )
 rows = cursor.fetchall()
 
