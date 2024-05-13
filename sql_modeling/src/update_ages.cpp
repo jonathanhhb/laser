@@ -94,8 +94,7 @@ void progress_immunities(
     int start_idx,
     int end_idx,
     signed char * immunity_timer,
-    bool* immunity,
-    int* node
+    bool* immunity
 ) {
     for (int i = start_idx; i <= end_idx; ++i) {
         if( immunity[i] && immunity_timer[i] > 0 )
@@ -389,31 +388,27 @@ void handle_new_infections_threaded(
     }
 }
 
+/*
+ Collects and aggregates statistical data on infection and immunity status
+ of a population of agents within a specified range of indices.
 
-void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
-    // This is just a very simplistic one-way linear type of infection migration
-    // I prefer to hard code a few values for this function rather than add parameters
-    // since it's most a test function.
-    int fraction = (int)(0.02*1000); // this fraction of infecteds migrate
-    unsigned long int counter = 0;
-    for (int i = start_idx; i < num_agents; ++i) {
-        if( i==end_idx ) {
-            return;
-        }
-        if( infected[ i ] && rand()%1000 < fraction )
-        {
-            if( node[ i ] > 0 )
-            {
-                node[ i ] --;
-            }
-            else
-            {
-                node[ i ] = 953; // this should be param
-            }
-        }
-    }
-}
+ This function iterates over a subset of agents defined by the range
+ [start_idx, eula_idx] and collects data on their infection and immunity
+ status. It calculates and aggregates counts of susceptible, infected,
+ and recovered agents for each unique node in the population.
 
+ - num_agents: The total number of agents in the population.
+ - start_idx: The starting index of the subset of agents to process.
+ - eula_idx: The ending index of the subset of agents to process.
+ - node: An array containing the node IDs of each agent.
+ - infected: An array indicating whether each agent is infected.
+ - immunity: An array indicating whether each agent is immune.
+ - age: An array containing the age of each agent.
+ - expected_lifespan: An array containing the expected lifespan of each agent.
+ - infection_count: An array to store the count of infected agents per node.
+ - susceptible_count: An array to store the count of susceptible agents per node.
+ - recovered_count: An array to store the count of recovered agents per node.
+*/
 void collect_report( 
     int num_agents,
     int start_idx,
@@ -450,6 +445,31 @@ void collect_report(
     for (int i = eula_idx; i < num_agents; ++i) {
         int node_id = node[i];
         recovered_count[ node_id ]++;
+    }
+}
+
+const int max_node_id = 953;
+void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
+    // This is just a very simplistic one-way linear type of infection migration
+    // I prefer to hard code a few values for this function rather than add parameters
+    // since it's most a test function.
+    int fraction = (int)(0.02*1000); // this fraction of infecteds migrate
+    unsigned long int counter = 0;
+    for (int i = start_idx; i < num_agents; ++i) {
+        if( i==end_idx ) {
+            return;
+        }
+        if( infected[ i ] && rand()%1000 < fraction )
+        {
+            if( node[ i ] > 0 )
+            {
+                node[ i ] --;
+            }
+            else
+            {
+                node[ i ] = max_node_id; // this should be param
+            }
+        }
     }
 }
 
