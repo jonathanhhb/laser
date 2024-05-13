@@ -39,7 +39,7 @@ def dump():
 
 def load_cbrs():
     # Read the CSV file into a DataFrame
-    df = pd.read_csv( settings.cbr_file )
+    df = pd.read_csv( demographics_settings.cbr_file )
 
     # Initialize an empty dictionary to store the data
     cbrs_dict = {}
@@ -240,7 +240,8 @@ def load( pop_file ):
         return probabilities
 
     global attraction_probs 
-    attraction_probs = load_attraction_probs()
+    if demographics_settings.num_nodes > 1 and settings.migration_fraction > 0:
+        attraction_probs = load_attraction_probs()
     return data
 
 def initialize_database():
@@ -294,6 +295,7 @@ def swap_to_dynamic_si( data, individual_idx ):
     #print( f"swapping newly infected individual at {individual_idx} with s_i idx {inf_sus_idx}." )
     if individual_idx > inf_sus_idx:
         raise ValueError( f"It should not be possible for the newly infected individual idx {individual_idx} to be already in the infected region (or greater) {inf_sus_idx}." )
+        pdb.set_trace()
     # will consolidate with above
     for col in data.keys():
         # Store eula-1 values in temp
@@ -368,14 +370,20 @@ def update_ages( data, totals, timestep ):
     update_ages_c( data['age'] ) # not necessary
 
     global unborn_end_idx
-    global cbrs
-    if not cbrs:
-        cbrs = load_cbrs()
     def births( data, interval ):
         #import sir_numpy
-        #num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+
+        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+
+        """
+        global cbrs
+        if not cbrs:
+            cbrs = load_cbrs()
         num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
+        """
+
         #num_new_babies_by_node = sir_numpy.births_from_lorton_algo( timestep )
+
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
@@ -424,8 +432,6 @@ def progress_infections( data, timestep, num_infected ):
     # Update infected agents
     # infection timer: decrement for each infected person
     def vector_math():
-        # Call the function with a null pointer
-        #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
         global dynamic_eula_idx, inf_sus_idx
