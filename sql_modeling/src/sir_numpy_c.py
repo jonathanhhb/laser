@@ -11,6 +11,7 @@ import time
 import gc
 
 import settings
+import demographics_settings
 import report
 #from model_sql import eula
 from model_numpy import eula
@@ -28,6 +29,7 @@ infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
+cbrs = None
 
 # optional function to dump data to disk at any point. A sort-of serialization.
 def dump():
@@ -57,7 +59,6 @@ def load_cbrs():
         cbrs_dict[elapsed_year].append( cbr ) # is this guaranteed right order?
 
     return cbrs_dict
-cbrs = load_cbrs()
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -243,7 +244,7 @@ def load( pop_file ):
     return data
 
 def initialize_database():
-    return load( settings.pop_file )
+    return load( demographics_settings.pop_file )
 
 def eula_init( df, age_threshold_yrs = 5, eula_strategy=None ):
     eula.init()
@@ -293,7 +294,6 @@ def swap_to_dynamic_si( data, individual_idx ):
     #print( f"swapping newly infected individual at {individual_idx} with s_i idx {inf_sus_idx}." )
     if individual_idx > inf_sus_idx:
         raise ValueError( f"It should not be possible for the newly infected individual idx {individual_idx} to be already in the infected region (or greater) {inf_sus_idx}." )
-        pdb.set_trace()
     # will consolidate with above
     for col in data.keys():
         # Store eula-1 values in temp
@@ -368,6 +368,9 @@ def update_ages( data, totals, timestep ):
     update_ages_c( data['age'] ) # not necessary
 
     global unborn_end_idx
+    global cbrs
+    if not cbrs:
+        cbrs = load_cbrs()
     def births( data, interval ):
         #import sir_numpy
         #num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
@@ -711,9 +714,9 @@ def distribute_interventions( data, timestep ):
         ria_9mo( settings.campaign_coverage )
     return data
 
-def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
-    #import_dict = { import_node: import_cases }
-    import_dict = { import_node: int(0.1*sus[import_node]) }
+def inject_cases( ctx, sus, import_cases=100, import_node=demographics_settings.num_nodes-1 ):
+    import_dict = { import_node: import_cases }
+    #import_dict = { import_node: int(0.1*sus[import_node]) }
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):

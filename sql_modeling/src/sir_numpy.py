@@ -23,7 +23,7 @@ def load_births_data(file_path):
     return births_dict
 
 # Example usage
-births_data = load_births_data(settings.births_file)
+#births_data = load_births_data(settings.births_file)
 
 def load( pop_file ):
     """
@@ -52,7 +52,7 @@ def load( pop_file ):
         columns.pop( "mcw" )
 
     settings.pop = len(columns['infected'])
-    print( f"Population={settings.pop}" )
+    # print( f"Population={settings.pop}" )
 
     add_expansion_slots( columns )
     # Pad with a bunch of zeros
@@ -234,6 +234,9 @@ def births_from_lorton_algo( timestep ):
     year = timestep // 365
     doy = (timestep % 365) + 1
 
+    global births_data
+    if not births_data:
+        births_data = load_births_data(settings.births_file)
     # Filter data for the specified city IDs
     city_births_data = np.array(births_data[year]).astype(int)
     births_today = np.zeros(len(settings.nodes)).astype(int)

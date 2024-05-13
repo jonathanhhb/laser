@@ -3,9 +3,10 @@ import numpy as np
 from sparklines import sparklines
 import pdb
 import settings
+import demographics_settings
 
 write_report = True
-new_infections = np.zeros(len(settings.nodes), dtype=np.uint32)
+new_infections = np.zeros(len(demographics_settings.nodes), dtype=np.uint32)
 
 def init():
     # Create a CSV file for reporting
@@ -21,17 +22,16 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
     totals = np.array([total[key] for key in sorted(total.keys(), reverse=True)])
     prev = infecteds/totals
     print( f"T={timestep}" )
-    #print( list( sparklines( prev ) ) )
+    print( list( sparklines( prev ) ) )
     # Write the counts to the CSV file
     #print( f"T={timestep},\nS={susceptible_counts},\nI={infected_counts},\nR={recovered_counts}" )
     if write_report:
-        for node in settings.nodes:
+        for node in demographics_settings.nodes:
             csvwriter.writerow([timestep,
                 node,
                 susceptible_counts[node] if node in susceptible_counts else 0,
                 infected_counts[node] if node in infected_counts else 0,
                 new_infections[node],
-                #ni_map[node] if node in new_infections else 0,
                 recovered_counts[node] if node in recovered_counts else 0,
                 new_births[node] if node in new_births else 0,
                 new_deaths[node] if node in new_deaths else 0,
