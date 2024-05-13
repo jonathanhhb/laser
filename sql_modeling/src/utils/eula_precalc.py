@@ -3,7 +3,7 @@ from collections import defaultdict
 from sparklines import sparklines
 import sys
 sys.path.append( "." )
-import settings
+import demographics_settings as settings
 import pdb
 
 # This file takes a eula_pop.csv file with initial populations by NODE and age
