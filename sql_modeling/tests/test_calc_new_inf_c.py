@@ -71,8 +71,7 @@ def run_ref_model():
         R.append(R[-1] + I_queue.pop())
 
         # Calculate new exposures
-        new_exposures = int(np.round(beta * sum(I_queue) * S[-1] / population))
-        #print( f"new_exposures = beta ({beta} * Infected ({sum(I_queue)}) * Susceptible ({S[-1]}) / population ({population}) ) = {new_exposures}" )
+        new_exposures = int(np.round(beta * sum(I_queue) * S[-1] / population)) 
         # Calculate new infections (from the exposed population)
 
         # Push new exposures into the exposed queue
@@ -390,6 +389,52 @@ class TestHandleNewInfections(unittest.TestCase):
         n = 1
         starting_index = 0  # Example starting index
         base_inf = beta
+
+        # Call run_ref_model to get reference results
+        S, E, I, R, NI = run_ref_model()
+        
+        sim_length = len(S)
+
+        # Create arrays for inputs and outputs
+        nodes = np.zeros(n, dtype=np.uint32)
+        inf_counts = np.zeros(n, dtype=np.uint32)
+        sus_counts = np.zeros(n, dtype=np.uint32)
+        tot_counts = np.zeros(n, dtype=np.uint32)
+        new_infections = np.zeros(n, dtype=np.uint32)
+
+        # Call calculate_new_infections for each timestep
+        for timestep in range(1,sim_length):
+            #print( f"{timestep}: {S[timestep]}, {E[timestep]}, {I[timestep]}, {R[timestep]}" )
+            sus_counts[0] = S[timestep-1]
+
+            # Update the exposed and infectious counts
+            inf_counts[0] = I[timestep]
+
+            num_si = E[0]
+            incubation_timer = np.zeros(num_si, dtype=np.uint8)
+            tot_counts[0] = S[timestep-1] + E[timestep-1] + I[timestep-1] + R[timestep-1]
+
+            # Call the ctypes function
+            lib.calculate_new_infections(
+                    0, 
+                    num_si-1,
+                    n,
+                    nodes,
+                    incubation_timer,
+                    inf_counts,
+                    sus_counts,
+                    tot_counts,
+                    new_infections,
+                    base_inf)
+
+            # Get the number of new infections from new_infections array
+            new_infections_timestep = np.sum(new_infections)
+
+            # Compare with reference results
+            #self.assert( new_infections_timestep == ref_results[timestep], f"Results mismatch at timestep {timestep}" )
+            #print( f"new_infections_timestep = {new_infections_timestep}\n" )
+            #print( f"I[{timestep}] = {NI[timestep]}\n" )
+            self.assertAlmostEqual( new_infections_timestep, NI[timestep], delta=10 ) # , "Results mismatch at timestep " + str(timestep)
 
         # Call run_ref_model to get reference results
         S, E, I, R, NI = run_ref_model()

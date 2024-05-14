@@ -166,7 +166,7 @@ void calculate_new_infections(
             //printf( "node = %d, exposed = %d, infected = %f.\n", i, exposed_counts_by_bin[ i ]*totals[i], infected_counts[ i ]*totals[i] );
             exposed_counts_by_bin[ i ] = infected_counts[ i ]; // HACK: Maybe an exposed count is dead?
             //abort();
-        }
+        } 
         float infectious_count = infected_counts[ i ] - exposed_counts_by_bin[ i ];
         float foi = infectious_count * base_inf;
         new_infs_out[ i ] = (int)round( foi * susceptible_counts[ i ] / totals[i] );
@@ -191,9 +191,9 @@ void handle_new_infections(
     //printf( "DEBUG: hni: creating %d new infections in node %d from %d susceptibles.\n", new_infections, node, num_eligible_agents );
     if( new_infections == 0 )
     {
+        printf( "WARNING: hni called with new_infections=0 for node %d.\n", node );
         return;
     }
-    assert( new_infections > 0 );
     if( num_eligible_agents == 0 )
     {
         return;

@@ -1,0 +1,6 @@
+metric,value
+mean_new_infs_per_year,666200
+mean_new_infs_per_year_london,52000
+mean_ccs_fraction_big_cities,0.01
+ccs_median_fraction,0.644
+sigmoid_slope,-1.78

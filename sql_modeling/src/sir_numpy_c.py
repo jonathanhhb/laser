@@ -719,6 +719,7 @@ def distribute_interventions( data, timestep ):
 def inject_cases( ctx, sus, import_cases=100, import_node=demographics_settings.num_nodes-1 ):
     import_dict = { import_node: import_cases }
     #import_dict = { import_node: int(0.1*sus[import_node]) }
+
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):

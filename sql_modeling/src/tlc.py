@@ -96,6 +96,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
         # if we have had total fade-out, inject imports
+        big_cities=[99,507,492,472,537]
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
             for node in range(settings.num_nodes):
                 #import_cases = int(0.1*counts["S"][node])
