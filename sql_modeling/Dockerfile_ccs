@@ -14,6 +14,7 @@ RUN mkdir static
 #RUN mv spinner.css static/
 
 COPY settings.py .
+COPY demographics_settings.py .
 COPY tlc.py .
 COPY sir_numpy_c.py .
 COPY sir_numpy.py .
@@ -21,11 +22,14 @@ COPY sir_sql.py .
 COPY report.py .
 COPY update_ages.cpp .
 RUN g++ -shared -fPIC -O3 -march=native -flto -fpermissive update_ages.cpp -o update_ages.so
-ADD model_numpy/ model_numpy/eula.py
-ADD model_sql/ model_sql/eula.py
-COPY post_proc.py .
+COPY model_numpy/eula.py model_numpy/ 
+COPY model_sql/eula.py model_sql/ 
 
+COPY modeled_pop.csv.gz .
+#COPY cbrs.csv .
 COPY fits.npy .
+
+COPY post_proc.py .
 
 CMD ["python", "app.py"]
 
