@@ -57,9 +57,9 @@ if [[ -n $england_wales ]]; then
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_modeled.csv.gz
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/attraction_probabilities.csv.gz
     gunzip attraction_probabilities.csv.gz
-    cp "$src_dir/demographics_settings_ew.py" .
+    cp "$src_dir/demographics_settings_ew.py" ./demographics_settings.py
 elif [[ -n $ccs ]]; then
-    cp "$src_dir/demographics_settings_1node.py" .
+    cp "$src_dir/demographics_settings_1node.py" ./demographics_settings.py
     make
 fi
 make update_ages.so
