@@ -3,10 +3,11 @@ import csv
 import gzip
 import sys
 sys.path.append( "." )
-import settings
+import demographics_settings as settings
 from sir_sql import initialize_database
 
 # 1) Create a full population in a SQLite db in memory
+print( f"Creating files to model population size {settings.pop} spread across {settings.num_nodes} nodes." )
 conn = sqlite3.connect(":memory:")  # Use in-memory database for simplicity
 initialize_database( conn, from_file=False )
 
@@ -17,6 +18,8 @@ get_all_query = f"SELECT * FROM agents WHERE age<{settings.eula_age} ORDER BY ag
 
 cursor.execute( get_all_query )
 rows = cursor.fetchall()
+
+print( f"Modeled population size = {len(rows)}" )
 
 csv_output_file = settings.pop_file.strip( ".gz" )
 with open( csv_output_file , "w", newline='' ) as csvfile:
@@ -33,15 +36,16 @@ with open(csv_output_file, 'rb') as f_in:
         # Read data from the input file and write it to the output file
         f_out.writelines(f_in)
 
-printf( "Compressed." )
+print( "Compressed." )
 
 get_eula_query = f"SELECT node, CAST(age as INT) AS age, COUNT(*) AS total_individuals FROM agents WHERE age>={settings.eula_age} GROUP BY node, CAST(age as INT) ORDER BY node, age"
+
 cursor.execute( get_eula_query )
 rows = cursor.fetchall()
-
 conn.close()
 
 result_dict = [] # dict=array
+eula_pop = 0
 # Iterate over the fetched rows and construct dictionaries
 for row in rows:
     result_dict.append({
@@ -49,9 +53,11 @@ for row in rows:
         "age": row[1],
         "total": row[2]
     })
+    eula_pop += row[2]
+print( f"EULA population size = {eula_pop}" )
 
 # Specify the CSV file path
-csv_file_path = "eula_binned.csv"
+csv_file_path = settings.eula_file
 
 # Write the dictionary data to a CSV file
 with open(csv_file_path, mode='w', newline='') as csv_file:

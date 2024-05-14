@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import settings
+import demographics_settings
 import ctypes
 import pdb
 
@@ -18,10 +19,10 @@ eula_dict = defaultdict(lambda: defaultdict(int))
 # Define Gompertz-Makeham parameters
 makeham_parameter = 0.01
 gompertz_parameter = 0.05
-age_bins = np.arange(settings.eula_age, 102)
+age_bins = np.arange(demographics_settings.eula_age, 102)
 probability_of_dying = 2.74e-6 * ( makeham_parameter + np.exp(gompertz_parameter * (age_bins - age_bins[0])) )
 #print( f"probability_of_dying = {probability_of_dying}" )
-fits = np.load(settings.eula_pop_fits, allow_pickle=True).item()
+fits = np.load(demographics_settings.eula_pop_fits, allow_pickle=True).item()
 def calculate_y(x, m, b):
     return int(m * x + b)
 
@@ -74,13 +75,13 @@ def progress_natural_mortality( timesteps ):
 
         return_deaths = defaultdict(int)
         for node in eula_dict:
-            expected_deaths = np.zeros(102-settings.eula_age).astype(np.int32)
+            expected_deaths = np.zeros(102-demographics_settings.eula_age).astype(np.int32)
 
-            counts = np.zeros(102-settings.eula_age)
+            counts = np.zeros(102-demographics_settings.eula_age)
 
             # Update the array with the count values from the dictionary
             for key, value in eula_dict[node].items():
-                index = key - settings.eula_age  # Calculate the index based on the key
+                index = key - demographics_settings.eula_age  # Calculate the index based on the key
                 counts[index] = int(value)
 
             for _ in range( timesteps ): # can't believe I have to loop this
@@ -92,7 +93,7 @@ def progress_natural_mortality( timesteps ):
                     raise ValueError( f"number of age bins in count={len(count)}, but number of age bins in prob={len(prob)} for node {node}." )
                 expected_deaths += np.random.binomial(counts, prob)
             for age in eula[node]:
-                eula_dict[node][age] -= expected_deaths[age-settings.eula_age] # round(count * (1-))
+                eula_dict[node][age] -= expected_deaths[age-demographics_settings.eula_age] # round(count * (1-))
             return_deaths[node] = sum(expected_deaths)
 
         """
@@ -134,6 +135,7 @@ def progress_natural_mortality( timesteps ):
         for node in range(settings.num_nodes):
             m, b = fits[node]
             pop = calculate_y(timestep_abs, m, b)
+            #print( f"pop={pop},m={m},b={b},node={node},time={timestep_abs}" )
             eula_dict[node][44] = pop
 
     from_lut()

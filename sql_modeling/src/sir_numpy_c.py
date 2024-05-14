@@ -12,6 +12,7 @@ import pandas as pd
 import gc
 
 import settings
+import demographics_settings
 import report
 #from model_sql import eula
 from model_numpy import eula
@@ -29,6 +30,7 @@ infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
+cbrs = None
 
 # optional function to dump data to disk at any point. A sort-of serialization.
 def dump():
@@ -38,7 +40,7 @@ def dump():
 
 def load_cbrs():
     # Read the CSV file into a DataFrame
-    df = pd.read_csv( settings.cbr_file )
+    df = pd.read_csv( demographics_settings.cbr_file )
 
     # Initialize an empty dictionary to store the data
     cbrs_dict = {}
@@ -58,7 +60,6 @@ def load_cbrs():
         cbrs_dict[elapsed_year].append( cbr ) # is this guaranteed right order?
 
     return cbrs_dict
-cbrs = load_cbrs()
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -77,7 +78,6 @@ update_ages_lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # node
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered idxs out
 ]
 update_ages_lib.progress_immunities.argtypes = [
@@ -93,8 +93,8 @@ update_ages_lib.calculate_new_infections.argtypes = [
     ctypes.c_size_t,  # starting index
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # nodes
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'),  # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # inf_counts
-    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS'),  # sus_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # inf_counts
+    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # sus_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # tot_counts
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
@@ -241,11 +241,12 @@ def load( pop_file ):
         return probabilities
 
     global attraction_probs 
-    attraction_probs = load_attraction_probs()
+    if demographics_settings.num_nodes > 1 and settings.migration_fraction > 0:
+        attraction_probs = load_attraction_probs()
     return data
 
 def initialize_database():
-    return load( settings.pop_file )
+    return load( demographics_settings.pop_file )
 
 def eula_init( df, age_threshold_yrs = 5, eula_strategy=None ):
     eula.init()
@@ -366,7 +367,19 @@ def update_ages( data, totals, timestep ):
 
     global unborn_end_idx
     def births( data, interval ):
+        #import sir_numpy
+
+        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+
+        """
+        global cbrs
+        if not cbrs:
+            cbrs = load_cbrs()
         num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
+        """
+
+        #num_new_babies_by_node = sir_numpy.births_from_lorton_algo( timestep )
+
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
@@ -415,8 +428,6 @@ def progress_infections( data, timestep, num_infected ):
     # Update infected agents
     # infection timer: decrement for each infected person
     def vector_math():
-        # Call the function with a null pointer
-        #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
         global dynamic_eula_idx, inf_sus_idx
@@ -429,7 +440,6 @@ def progress_infections( data, timestep, num_infected ):
             data['infected'],
             data['immunity_timer'],
             data['immunity'],
-            data['node'],
             recovered_idxs
         ) # ctypes.byref(integers_ptr))
         for rec_idx in range( num_recovereds ):
@@ -489,9 +499,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
         # Are inf and sus fractions or totals? fractions
         new_infections = np.zeros( len( inf ) ).astype( np.uint32 ) # return variable
         sorted_items = sorted(inf.items())
-        inf_np = np.array([np.float32(value) for _, value in sorted_items])
-        #print( f"inf_np = {inf_np}." )
-        sus_np = np.array([np.float32(value) for value in sus.values()])
+        # This code is when inf and sus are fractions; moving to counts
+        #inf_np = np.array([np.float32(value) for _, value in sorted_items])
+        #sus_np = np.array([np.float32(value) for value in sus.values()])
+        # counts
+        inf_np = np.array([value for _, value in sorted_items])
+        sus_np = np.array([value for value in sus.values()])
+
         tot_np = np.array([np.uint32(value) for value in totals.values()])
 
         sm = kwargs.get('seasonal_multiplier')
@@ -504,8 +518,13 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
                 len( inf ),
                 data['node'],
                 data['incubation_timer'],
+                # fractions
+                #(inf_np*tot_np).astype( np.uint32 ),
+                #(sus_np*tot_np).astype( np.uint32 ),
+                # counts
                 inf_np,
                 sus_np,
+
                 tot_np,
                 new_infections,
                 bi * inf_multiplier
@@ -519,6 +538,11 @@ def calculate_new_infections( data, inf, sus, totals, timestep, **kwargs ):
     return new_infections 
 
 def handle_transmission_by_node( data, new_infections, susceptible_counts, node=0 ):
+    # print( f"DEBUG: New Infections: {new_infections}" )
+    # print( f"DEBUG: susceptible_counts: {susceptible_counts}" )
+    if new_infections[node]>susceptible_counts[node]:
+        raise ValueError( f"ERROR: Asked for {new_infections[node]} new infections but only {susceptible_counts[node]} susceptibles exist in node {node}." )
+
     # Step 5: Update the infected flag for NEW infectees
     def handle_new_infections_c(new_infections):
         if new_infections > 1e6: # arbitrary "too large" value:
@@ -610,7 +634,7 @@ def migrate( data, timestep, **kwargs ):
         #print( "Starting migration..." )
         # Let's migrate 1% of infected agents.
         # Select indices where 'infected' is True
-        infected_indices = np.where(data['infected'] == True)[0]
+        infected_indices = np.where((data['infected'] == True ) & ( data['incubation_timer']<=0 ))[0]
 
         # Calculate the number of individuals to select (1% of the total infected individuals)
         #num_to_select = int(len(infected_indices) * 0.01)
@@ -692,8 +716,9 @@ def distribute_interventions( data, timestep ):
         ria_9mo( settings.campaign_coverage )
     return data
 
-def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ):
+def inject_cases( ctx, sus, import_cases=100, import_node=demographics_settings.num_nodes-1 ):
     import_dict = { import_node: import_cases }
+    #import_dict = { import_node: int(0.1*sus[import_node]) }
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):
