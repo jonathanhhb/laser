@@ -21,6 +21,8 @@ ln -sfn "$src_dir/sir_numpy_c.py"
 ln -sfn "$src_dir/update_ages.cpp"
 ln -sfn "$src_dir/tlc.py"
 ln -sfn "$src_dir/makefile"
+ln -sfn "$src_dir/births.csv"
+ln -sfn "$src_dir/cbrs.csv"
 
 cp "$src_dir/../service/fits.npy" .
 cp "$src_dir/settings.py" .
