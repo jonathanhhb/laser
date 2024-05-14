@@ -1,5 +1,5 @@
 # Pop & Nodes if building pop from params 
-pop = int(1e7)+1
+pop = int(1e6)+1
 num_nodes = 1
 nodes = [ x for x in range(num_nodes) ]
 # Epidemiologically Useless Light Agents
