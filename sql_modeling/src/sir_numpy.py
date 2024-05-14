@@ -252,8 +252,9 @@ def births_from_cbr( node_pops, rate=30 ):
     new_babies = {}
     for node in node_pops:
         #cbr_node = settings.fertility_interval * rate * (node_pops[node]/1000.0)/365.0
-        act_rate = 17.5
-        if node < len(rate):
+        if type(rate) is not list:
+            act_rate = 17.5 
+        elif node < len(rate):
             act_rate = rate[node]
         else:
             print( f"WARNING: {node} not found in rate array! Defaulting to 17.5." )

@@ -14,7 +14,7 @@ from settings import * # local file
 import settings
 import demographics_settings 
 pop = demographics_settings.pop # slightly tacky way of making this 'globally' available in the module
-print( f"Creating input files for population size {pop}." )
+#print( f"Creating input files for population size {pop}." )
 
 import report
 from model_sql import eula

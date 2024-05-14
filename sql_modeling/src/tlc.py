@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Append the current working directory to the beginning of sys.path
+sys.path.insert(0, os.getcwd())
+
 import pdb
 # Import a model
 #import laser_numpy_mode.sir_numpy as model
@@ -90,11 +96,8 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
         # if we have had total fade-out, inject imports
-        #big_cities=[99,507,492,472,537]
-        big_cities=[507]
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
-            #for node in range(settings.num_nodes):
-            for node in big_cities:
+            for node in range(settings.num_nodes):
                 #import_cases = int(0.1*counts["S"][node])
                 import_cases = int(counts["S"][node]/80.)
                 print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases into node {node}." )
