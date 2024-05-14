@@ -22,27 +22,35 @@ MODELED_POP_CSV := modeled_pop.csv
 EULA_POP_CSV := eula_pop.csv
 
 # Default target
-all: $(fits.npy) $(MODELED_POP_CSV)
+all: $(MODELED_POP_CSV) fits.npy 
 
 # Rule to build update_ages.so from update_ages.c
 $(UPDATE_AGES_SO): update_ages.cpp
 	$(CC) $(CFLAGS) -o $@ $<
 
-$(MODELED_POP_CSV): settings.py
+$(MODELED_POP_CSV): demographics_settings.py
 	$(CREATE_POP_SCRIPT)
 
 eula_pops_20yr_noaging.csv: eula_binned.csv
+	# eula_binned.csv -> eula_pops_20yr_noaging.csv
 	$(PYTHON) utils/eula_precalc.py eula_pops_20yr_noaging.csv
 
 fits.npy: eula_pops_20yr_noaging.csv
+	# eula_pops_20yr_noaging.csv -> fits.npy
 	$(PYTHON) utils/fit_eula_pops.py eula_pops_20yr_noaging.csv
 
 run:
 	python3 tlc.py
 
+setup:
+	./setup.sh
+
 # Clean target to remove generated files
 clean:
 	rm -f $(UPDATE_AGES_SO) $(EULA_DB) $(POP_SEEDED_CSV) $(MODELED_POP_CSV)
+
+test:
+	PYTHONPATH=$PYTHONPATH:../src python3 -m unittest discover -s ../tests -p 'test_*.py' -v
 
 # Phony targets
 .PHONY: all clean

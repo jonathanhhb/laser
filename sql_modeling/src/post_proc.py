@@ -85,7 +85,7 @@ def analyze_ccs():
     except Exception as ex:
         print( str( ex ) )
         sig_slope = -5
-    
+
     median = get_median( pops_df["Population"], sorted_df['Fraction_NonZero_New_Infections'] )
     def save_and_plot():
         sorted_df.to_csv( "logpop_vs_fractionzero.csv" )

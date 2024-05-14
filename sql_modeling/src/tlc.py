@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Append the current working directory to the beginning of sys.path
+sys.path.insert(0, os.getcwd())
+
 import pdb
 # Import a model
 #import laser_numpy_mode.sir_numpy as model
@@ -5,6 +11,7 @@ import sir_numpy_c as model
 from copy import deepcopy
 
 import settings
+import demographics_settings
 import report
 
 report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
@@ -13,7 +20,7 @@ report_births = {}
 #report_deaths = {}
 
 new_infections_empty = {}
-for i in range(settings.num_nodes):
+for i in range(demographics_settings.num_nodes):
     new_infections_empty[ i ] = 0
 
 def collect_and_report(csvwriter, timestep, ctx):
@@ -91,12 +98,12 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         # if we have had total fade-out, inject imports
         big_cities=[99,507,492,472,537]
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
-            # what if we just seed in London?
-            #model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 ) 
             for node in range(settings.num_nodes):
-            #for node in big_cities:
-                print( f"ELIMINATION Detected: Reeseding: Injecting {settings.import_cases} new cases into node {node}." ) 
-                model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=node ) 
+                #import_cases = int(0.1*counts["S"][node])
+                import_cases = int(counts["S"][node]/80.)
+                print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases into node {node}." )
+                model.inject_cases( ctx, sus=counts["S"], import_cases=import_cases, import_node=node )
+            #model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 )
 
         # We almost certainly won't waste time updating everyone's ages every timestep but this is 
         # here as a placeholder for "what if we have to do simple math on all the rows?"
@@ -114,7 +121,7 @@ if __name__ == "__main__":
     # Initialize the 'database' (or load the dataframe/csv)
     # ctx might be db cursor or dataframe or dict of numpy vectors
     ctx = model.initialize_database()
-    ctx = model.eula_init( ctx, settings.eula_age )
+    ctx = model.eula_init( ctx, demographics_settings.eula_age )
 
     csv_writer = report.init()
 
@@ -125,6 +132,6 @@ if __name__ == "__main__":
     runtime = timeit( runsim, number=1 )
     print( f"Execution time = {runtime}." )
 
-    import post_proc
-    post_proc.analyze()
+    #import post_proc
+    #post_proc.analyze()
 

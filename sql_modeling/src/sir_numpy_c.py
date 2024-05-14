@@ -12,6 +12,7 @@ import pandas as pd
 import gc
 
 import settings
+import demographics_settings
 import report
 #from model_sql import eula
 from model_numpy import eula
@@ -29,6 +30,7 @@ infecteds = 0
 s_to_i_swap_time = 0
 i_to_r_swap_time = 0
 attraction_probs = None
+cbrs = None
 
 # optional function to dump data to disk at any point. A sort-of serialization.
 def dump():
@@ -38,7 +40,7 @@ def dump():
 
 def load_cbrs():
     # Read the CSV file into a DataFrame
-    df = pd.read_csv( settings.cbr_file )
+    df = pd.read_csv( demographics_settings.cbr_file )
 
     # Initialize an empty dictionary to store the data
     cbrs_dict = {}
@@ -58,7 +60,6 @@ def load_cbrs():
         cbrs_dict[elapsed_year].append( cbr ) # is this guaranteed right order?
 
     return cbrs_dict
-cbrs = load_cbrs()
 
 # Load the shared library
 update_ages_lib = ctypes.CDLL('./update_ages.so')
@@ -240,11 +241,12 @@ def load( pop_file ):
         return probabilities
 
     global attraction_probs 
-    attraction_probs = load_attraction_probs()
+    if demographics_settings.num_nodes > 1 and settings.migration_fraction > 0:
+        attraction_probs = load_attraction_probs()
     return data
 
 def initialize_database():
-    return load( settings.pop_file )
+    return load( demographics_settings.pop_file )
 
 def eula_init( df, age_threshold_yrs = 5, eula_strategy=None ):
     eula.init()
@@ -365,7 +367,19 @@ def update_ages( data, totals, timestep ):
 
     global unborn_end_idx
     def births( data, interval ):
+        #import sir_numpy
+
+        num_new_babies_by_node = sir_numpy.births_from_cbr( totals, rate=settings.cbr )
+
+        """
+        global cbrs
+        if not cbrs:
+            cbrs = load_cbrs()
         num_new_babies_by_node = sir_numpy.births_from_cbr_var( totals, rate=cbrs[timestep//365] )
+        """
+
+        #num_new_babies_by_node = sir_numpy.births_from_lorton_algo( timestep )
+
         keys = np.array(list(num_new_babies_by_node.keys()))
         values = np.array(list(num_new_babies_by_node.values()))
         result_array = np.repeat(keys, values)
@@ -414,8 +428,6 @@ def progress_infections( data, timestep, num_infected ):
     # Update infected agents
     # infection timer: decrement for each infected person
     def vector_math():
-        # Call the function with a null pointer
-        #integers_ptr = ctypes.POINTER(ctypes.c_int)()
         # Would be nice to get indices (not ids) of newly recovereds...
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
         global dynamic_eula_idx, inf_sus_idx
@@ -704,9 +716,10 @@ def distribute_interventions( data, timestep ):
         ria_9mo( settings.campaign_coverage )
     return data
 
-def inject_cases( ctx, sus, import_cases=100, import_node=settings.num_nodes-1 ): 
-    #import_dict = { import_node: import_cases }
-    import_dict = { import_node: int(0.1*sus[import_node]) }
+def inject_cases( ctx, sus, import_cases=100, import_node=demographics_settings.num_nodes-1 ):
+    import_dict = { import_node: import_cases }
+    #import_dict = { import_node: int(0.1*sus[import_node]) }
+
     htbn = partial( handle_transmission_by_node, ctx, import_dict, susceptible_counts=sus, node=import_node )
     new_idxs = htbn()
     for idx in sorted(new_idxs,reverse=True):

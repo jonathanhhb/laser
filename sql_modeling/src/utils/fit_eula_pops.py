@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 import sys
 sys.path.append( "." )
-import settings
+import demographics_settings as settings
 
 # Read the CSV file
 df = pd.read_csv(sys.argv[1])

@@ -12,9 +12,14 @@ import os
 # We'll fix this settings stuff up soon.
 from settings import * # local file
 import settings
+import demographics_settings 
+pop = demographics_settings.pop # slightly tacky way of making this 'globally' available in the module
+#print( f"Creating input files for population size {pop}." )
 
 import report
 from model_sql import eula
+
+scaled_samples = None
 
 # Globals! (not really)
 conn = sql.connect(":memory:")  # Use in-memory database for simplicity
@@ -34,14 +39,14 @@ def get_beta_samples(number):
     samples = beta.rvs(alpha, beta_, size=number)
     scaled_samples = samples * (lifespan_max_value - 1) + 1
     return scaled_samples 
-scaled_samples = get_beta_samples( pop )
+
 lifespan_idx = 0
 
 def get_node_ids():
     import numpy as np
 
     array = []
-    for node in settings.nodes:
+    for node in demographics_settings.nodes:
         array.extend( np.ones(node+1)*(node) )
     # Generate the array based on the specified conditions
     """
@@ -70,6 +75,9 @@ def get_node_ids():
 def get_rand_lifespan():
     def beta_lifespan():
         # Generate random samples from the beta distribution
+        global scaled_samples 
+        if scaled_samples is None:
+            scaled_samples = get_beta_samples( pop )
 
         # Scale samples to match the desired range
         #scaled_samples = samples * max_value
@@ -88,16 +96,16 @@ def get_rand_lifespan():
     return beta_lifespan()
 
 def init_db_from_csv():
-    print( f"Initializing pop from file: {settings.pop_file}." )
+    print( f"Initializing pop from file: {demographics_settings.pop_file}." )
     import pandas as pd
-    df = pd.read_csv( settings.pop_file )
+    df = pd.read_csv( demographics_settings.pop_file )
     conn=sql.connect(":memory:")
     df.to_sql("agents",conn,index=False)
     cursor = conn.cursor()
-    settings.nodes = [ x[0] for x in cursor.execute( "SELECT DISTINCT node FROM agents ORDER BY node" ).fetchall() ]
-    settings.num_nodes = len(settings.nodes)
-    settings.pop = cursor.execute( "SELECT COUNT(*) FROM agents" ).fetchall()[0][0]
-    print( f"Loaded population file with {settings.pop} agents across {settings.num_nodes} nodes." )
+    demographics_settings.nodes = [ x[0] for x in cursor.execute( "SELECT DISTINCT node FROM agents ORDER BY node" ).fetchall() ]
+    demographics_settings.num_nodes = len(demographics_settings.nodes)
+    demographics_settings.pop = cursor.execute( "SELECT COUNT(*) FROM agents" ).fetchall()[0][0]
+    print( f"Loaded population file with {demographics_settings.pop} agents across {demographics_settings.num_nodes} nodes." )
     return cursor
 
 def eula_init( cursor, age_threshold_yrs = 5, eula_strategy="from_db" ):
@@ -139,12 +147,12 @@ def eula_init( cursor, age_threshold_yrs = 5, eula_strategy="from_db" ):
     elif eula_strategy=="from_file":
         print( "EULAed agents were pre-sorted into separate file which we are loading into a table now" )
         import pandas as pd
-        df = pd.read_csv( settings.eulad_pop_file )
+        df = pd.read_csv( demographics_settings.eulad_pop_file )
         conn=sql.connect(":memory:")
         df.to_sql("agents",conn,index=False)
         cursor = conn.cursor()
-        settings.pop = cursor.execute( "SELECT COUNT(*) FROM agents" ).fetchall()[0][0]
-        print( f"Loaded population file with {settings.pop} agents across {settings.num_nodes} nodes." )
+        demographics_settings.pop = cursor.execute( "SELECT COUNT(*) FROM agents" ).fetchall()[0][0]
+        print( f"Loaded population file with {demographics_settings.pop} agents across {demographics_settings.num_nodes} nodes." )
     elif eula_strategy=="from_db":
         eula.init()
     elif not eula_strategy:
@@ -199,8 +207,8 @@ def initialize_database( conn=None, from_file=True ):
 
     # Seed exactly 100 people to be infected in the first timestep
     # uniform distribution draws seem a bit clunky in SQLite. Just looking for values from 4 to 14. Ish.
-    cursor.execute( 'UPDATE agents SET infected = 1, infection_timer=9+RANDOM()%6, incubation_timer=3 WHERE id IN (SELECT id FROM agents WHERE node=:big_node ORDER BY RANDOM() LIMIT 100)', { 'big_node': num_nodes-1 } )
-    #for node in range( settings.num_nodes ):
+    cursor.execute( 'UPDATE agents SET infected = 1, infection_timer=9+RANDOM()%6, incubation_timer=3 WHERE id IN (SELECT id FROM agents WHERE node=:big_node ORDER BY RANDOM() LIMIT 100)', { 'big_node': demographics_settings.num_nodes-1 } )
+    #for node in range( demographics_settings.num_nodes ):
         #cursor.execute( 'UPDATE agents SET infected = 1, infection_timer=9+RANDOM()%6, incubation_timer=3 WHERE id IN (SELECT id FROM agents WHERE node=:big_node ORDER BY RANDOM() LIMIT 100)', { 'big_node': node } )
 
     conn.commit()
@@ -215,21 +223,21 @@ def collect_report( cursor ):
     
     susceptible_counts_db = cursor.fetchall()
     susceptible_counts = {values[0]: values[1] for idx, values in enumerate(susceptible_counts_db)}
-    for node in settings.nodes:
+    for node in demographics_settings.nodes:
         if node not in susceptible_counts:
             susceptible_counts[node] = 0
 
     cursor.execute('SELECT node, COUNT(*) FROM agents WHERE infected=1 GROUP BY node')
     infected_counts_db = cursor.fetchall()
     infected_counts = {values[0]: values[1] for idx, values in enumerate(infected_counts_db)}
-    for node in settings.nodes:
+    for node in demographics_settings.nodes:
         if node not in infected_counts:
             infected_counts[node] = 0
 
     cursor.execute('SELECT node, COUNT(*) FROM agents WHERE immunity=1 GROUP BY node')
     recovered_counts_db = cursor.fetchall()
     recovered_counts = {values[0]: values[1] for idx, values in enumerate(recovered_counts_db)}
-    for node in settings.nodes:
+    for node in demographics_settings.nodes:
         if node not in recovered_counts:
             recovered_counts[node] = 0
 
@@ -270,7 +278,7 @@ def update_ages( cursor, totals=None ): # totals are for demographic-based ferti
             return new_babies
 
         #print( f"pop after births = {num_agents}" )
-        new_babies = births_from_cbr( totals, rate=settings.cbr )
+        new_babies = births_from_cbr( totals, rate=demographics_settings.cbr )
         #print( f"New babies by node: {new_babies}" )
         # Iterate over nodes and add newborns
         for node, count in new_babies.items():
@@ -310,7 +318,7 @@ def progress_immunities( cursor ):
 
 def calculate_new_infections( cursor, inf, sus, totals ):
     import numpy as np
-    node_counts_incubators = np.zeros( settings.num_nodes )
+    node_counts_incubators = np.zeros( demographics_settings.num_nodes )
     results = cursor.execute('SELECT node, COUNT(*) FROM agents WHERE incubation_timer >= 1 GROUP BY node').fetchall()
     node_counts_incubators2 = {node: count for node, count in results}
 
@@ -349,10 +357,10 @@ def _handle_transmission_inner( cursor, new_infections, node=0 ):
 
     #print( f"{new_infections} new infections in node {node}." )
 #with concurrent.futures.ThreadPoolExecutor() as executor:
-    #results = list(executor.map(handle_transmission, settings.nodes))
+    #results = list(executor.map(handle_transmission, demographics_settings.nodes))
 
 def handle_transmission( df, new_infections ):
-    for node in settings.nodes:
+    for node in demographics_settings.nodes:
         if new_infections[ node ] > 0:
             df = _handle_transmission_inner( df, new_infections[ node ], node )
     return df
@@ -418,7 +426,7 @@ def migrate( cursor, timestep, **kwargs ): # ignore kwargs
                     ORDER BY RANDOM()
                     LIMIT CAST( (SELECT COUNT(*) FROM agents WHERE infected=1 ) * 0.05 AS INTEGER)
                 )
-            ''', { 'max_node': settings.num_nodes-1 } )
+            ''', { 'max_node': demographics_settings.num_nodes-1 } )
     return cursor # for pattern
 
 # Function to run the simulation for a given number of timesteps
