@@ -205,7 +205,7 @@ void calculate_new_infections(
     }
 
     // new infections = Infected frac * infectivity * susceptible frac * pop
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < num_nodes; ++i) {
         if( exposed_counts_by_bin[ i ] > infected_counts[ i ] )
         {
