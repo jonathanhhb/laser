@@ -11,7 +11,7 @@ import demographics_settings
 #from laser_numpy_model import report
 import report
 
-report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
+#report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
 # fractions = {}
 report_births = {}
 #report_deaths = {}
@@ -78,7 +78,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         mf = settings.migration_fraction
 
     for timestep in range(1, num_timesteps + 1):
-        if timestep==1000:
+        if timestep==settings.burnin_delay:
             transmission_time = 0
             pre_transmission_time = 0
             prog_infs_time = 0
