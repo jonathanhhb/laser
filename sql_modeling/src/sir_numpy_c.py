@@ -299,7 +299,6 @@ def swap_to_dynamic_si( data, individual_idx ):
     global infecteds
     global inf_sus_idx
     start_time = time.time()
-    infecteds += 1
     
     #print( f"swapping newly infected individual at {individual_idx} with s_i idx {inf_sus_idx}." )
     if individual_idx > inf_sus_idx:
@@ -475,7 +474,7 @@ def progress_infections( data, timestep, num_infected ):
             data['immunity'],
             recovered_idxs
         ) # ctypes.byref(integers_ptr))
-        print( f"{num_recovereds} recovered from their infections and are now immune." )
+        #print( f"{num_recovereds} recovered from their infections and are now immune." )
         if num_recovereds > num_infected:
             print( f"ERROR: Somehow we got more recovered {num_recovereds} than infected {num_infected}!" )
             raise ValueError( f"ERROR: Somehow we got more recovered {num_recovereds} than infected {num_infected}!" )
@@ -661,6 +660,8 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
         if idx > 0:
             swap_to_dynamic_si( data_in, idx )
     """
+    global infecteds
+    infecteds += len(new_infection_idxs)
     return data_in
 
 def add_new_infections( data ):
@@ -796,6 +797,7 @@ def inject_cases( ctx, sus, import_cases=100, import_node=demographics_settings.
     for idx in sorted(new_idxs,reverse=True):
         swap_to_dynamic_si( ctx, idx )
     """
+    infecteds += len(new_idxs)
 
 # Function to run the simulation for a given number of timesteps
 def run_simulation(data, csvwriter, num_timesteps):
