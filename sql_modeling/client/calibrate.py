@@ -8,7 +8,8 @@ import optuna
 import requests
 import pdb
 
-url = 'http://10.24.14.21:6000/submit'
+#url = 'http://10.24.14.21:6000/submit'
+url = 'http://172.19.0.2:5000/submit'
 # Load reference/target values from metrics_ref.csv
 reference_values = pd.read_csv('metrics_ref.csv', index_col='metric').to_dict()['value']
 
@@ -93,17 +94,11 @@ if __name__ == "__main__":
     # Create a study object and optimize the objective function
     study = optuna.create_study(
             direction='minimize',
-            #study_name="no-name-4db02119-203d-499a-a085-504f99eb0fa8",
-            #study_name="no-name-1e59dcfa-4fdd-4b60-998d-888db2f91381",
-            #study_name="no-name-91d543f6-b02e-4529-9f14-5c946c272f72",
-            #study_name="no-name-953c9373-5295-45fb-9dd8-bebf189e56d4",
-            #study_name="no-name-583a1bcc-7105-4659-be6b-2ee9dbdc2753",
-            #study_name="no-name-d885a466-8a6e-452b-b79f-43b3cbf427bd",
-            study_name="no-name-0a3e9960-f387-4a8f-8401-50718dbb4785",
+            #study_name="...",
             storage='sqlite:///laser_ew.db',
             load_if_exists=True
         )
-    #study.optimize(objective, n_trials=250)
+    study.optimize(objective, n_trials=25)
 
     # Print the best parameters found
     print("Best parameters:", study.best_params)

@@ -37,31 +37,44 @@ mkdir -p "$sandbox_dir"
 
 pushd $sandbox_dir
 
+mkdir model_numpy
+mkdir model_sql
+
 # Create symlinks for each file or directory in src_dir
-ln -sfn "$src_dir/report.py" 
-ln -sfn "$src_dir/sir_sql.py"
-ln -sfn "$src_dir/makefile"
-ln -sfn "$src_dir/utils"
-ln -sfn "$src_dir/sir_numpy.py"
-ln -sfn "$src_dir/model_numpy"
-ln -sfn "$src_dir/model_sql"
-ln -sfn "$src_dir/sir_numpy_c.py"
-ln -sfn "$src_dir/update_ages.cpp"
-ln -sfn "$src_dir/tlc.py"
-ln -sfn "$src_dir/makefile"
+cp "$src_dir/report.py" .
+cp "$src_dir/sir_sql.py" .
+cp "$src_dir/makefile" .
+ln -sfn "$src_dir/utils" .
+cp "$src_dir/sir_numpy.py" .
+cp "$src_dir/model_numpy/eula.py" model_numpy/
+cp "$src_dir/model_sql/eula.py" model_sql/
+cp "$src_dir/sir_numpy_c.py" .
+cp "$src_dir/update_ages.cpp" .
+cp "$src_dir/tlc.py" .
+cp "$src_dir/../service/app.py" app.py
+#ln -sfn "$src_dir/../service/requirements.txt" requirements.txt
+cp "$src_dir/../service/requirements.txt" requirements.txt
+#ln -sfn "$src_dir/births.csv"
+#ln -sfn "$src_dir/cbrs.csv"
 
 cp "$src_dir/../service/fits.npy" .
 cp "$src_dir/settings.py" .
+cp "$src_dir/demographics_settings_1node.py" ./demographics_settings.py
+cp "$src_dir/post_proc.py" .
 
 if [[ -n $england_wales ]]; then
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_modeled.csv.gz
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/attraction_probabilities.csv.gz
     gunzip attraction_probabilities.csv.gz
     cp "$src_dir/demographics_settings_ew.py" ./demographics_settings.py
+    cp "$src_dir/../Dockerfile" ./Dockerfile
 elif [[ -n $ccs ]]; then
     cp "$src_dir/demographics_settings_1node.py" ./demographics_settings.py
+    cp "$src_dir/../Dockerfile_ccs" ./Dockerfile
     make
 fi
+
+cp "$src_dir/../docker-compose.yml" .
 
 make update_ages.so
 
