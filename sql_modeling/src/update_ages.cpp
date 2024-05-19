@@ -104,7 +104,8 @@ size_t progress_infections(
     uint32_t * recovered_idxs
 ) {
     recovered_counter = 0;
-    #pragma omp parallel for
+#if 0
+    //#pragma omp parallel for
     for (int i = start_idx; i <= end_idx; ++i) {
         if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
             // Incubation timer: decrement for each person
@@ -126,12 +127,56 @@ size_t progress_infections(
                     immunity_timer[i] = -1;
                     immunity[i] = true;
                     //printf( "Recovery.\n" );
-                    #pragma omp critical
+                    //#pragma omp critical
                     recovered_idxs[ recovered_counter++ ] = i;
                 }
             }
         }
     }
+#else
+
+    // Allocate a 2D vector to store thread-local buffers
+    std::vector<std::vector<int>> thread_local_buffers(omp_get_max_threads());
+
+#pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        std::vector<int> &local_buffer = thread_local_buffers[thread_id];
+
+#pragma omp for
+        for (unsigned long int i = start_idx; i <= end_idx; ++i) {
+            if (incubation_timer[i] >= 1) {
+                incubation_timer[i]--;
+            }
+
+            // Infection timer: decrement for each infected person
+            if (infection_timer[i] >= 1) {
+                infection_timer[i]--;
+
+                // Some people clear
+                if (infection_timer[i] == 0) {
+                    infected[i] = 0;
+
+                    // Recovereds gain immunity
+                    immunity_timer[i] = -1;
+                    immunity[i] = true;
+
+                    local_buffer.push_back(i);
+                }
+            }
+        }
+    }
+
+    // Accumulate results from thread-local buffers
+    int global_counter = 0;
+    for (const auto &buffer : thread_local_buffers) {
+        for (int idx : buffer) {
+            recovered_idxs[global_counter++] = idx;
+        }
+    }
+    recovered_counter = global_counter;
+
+#endif
     return recovered_counter;
 }
 
@@ -305,7 +350,6 @@ void handle_new_infections(
     }
 }
 
-#if 0
 void handle_new_infections_mp(
     unsigned long int start_idx,
     unsigned long int end_idx,
@@ -317,78 +361,61 @@ void handle_new_infections_mp(
     unsigned char  * incubation_timer,
     unsigned char  * infection_timer,
     int * new_infections_array,
-    int * new_infection_idxs_out,
+    //int * new_infection_idxs_out,
     int * num_eligible_agents_array
 ) {
-    //printf( "DEBUG: hni: creating %d new infections in node %d from %d susceptibles.\n", new_infections, node, num_eligible_agents );
-#pragma omp parallel for
-    for( unsigned int node=0; node < num_nodes; node++ ) {
-        //printf( "Processing node %d\n", node );
-        unsigned int new_infections = new_infections_array[ node ];
-        //printf( "new_infections = %d.\n", new_infections );
-        unsigned int num_eligible_agents = num_eligible_agents_array[ node ];
-        //printf( "num_eligible_agents = %d.\n", num_eligible_agents );
+    std::unordered_map<int, std::vector<int>> node2sus;
 
-        /*if( end_idx < start_idx ) {
-          printf( "ERROR: start_idx (%ld) is not < end_idx (%ld).\n", start_idx, end_idx );
-          return;
-          }*/
+#pragma omp parallel
+    {
+        // Thread-local buffers to collect susceptible indices by node
+        std::unordered_map<int, std::vector<int>> local_node2sus;
 
-        if( new_infections > 0 && num_eligible_agents > 0 ) {
-            //printf( "Doing transmission in node %d\n", node );
-            unsigned long int num_agents = end_idx-start_idx+1;
-            int selected_indices[num_eligible_agents]; // store idxs of selected for infection
-                                                       // these should be zeroed out first.
-            int count = 0;
+#pragma omp for nowait
+        for (unsigned long int i = start_idx; i <= end_idx; ++i) {
+            if (!infected[i] && !immunity[i]) {
+                int node = agent_node[i];
+                local_node2sus[node].push_back(i);
+                //printf( "Found susceptible in node %d\n", node );
+            }
+        }
 
-            for (unsigned long int i = start_idx; i <= end_idx; i++) {
-                if( !infected[i] && !immunity[i] && agent_node[i] == node && count < num_eligible_agents ) {
-                    // Found eligible (susceptible) in group of S & Is & maybe Es and Rs
-                    unsigned long int selected_idx = i;
-                    selected_indices[count++] = selected_idx;
-                    //printf( "DEBUG: selected_indices[%d] = %ld.\n", count-1, selected_idx );
-                    /*if( count == num_eligible_agents ) {
-                    // Note that we saw a bug where sometimes more agents were found to satisfy our sus condition than the value passed it! TBD
-                    break;
-                    }*/
+#pragma omp critical
+        {
+            // Accumulate the local buffers into the global map
+            for (const auto &pair : local_node2sus) {
+                int node = pair.first;
+                if (node2sus.find(node) == node2sus.end()) {
+                    node2sus[node] = pair.second;
+                } else {
+                    node2sus[node].insert(node2sus[node].end(), pair.second.begin(), pair.second.end());
                 }
             }
-            if( count < num_eligible_agents )
-            {
-                printf( "ERROR: count = %d, num_eligible_agents = %d.\n", count, num_eligible_agents  );
-                abort();
-            }
-            if( count == 0 ) {
-                printf( "WARNING: Found no susceptibles for some reason. Not infecting anyone.\n" );
-                abort();
-            }
-            //num_eligible_agents = count; // ask me about this.
+        }
+    }
 
-            int i, step, selected_count = 0;
-            // Calculate the step size
-            if (new_infections >= num_eligible_agents) {
-                step = 1; // If we need to select all elements or more, select each one
-            } else {
-                step = num_eligible_agents/new_infections; // If we need to select less than N, calculate step size
-            }
-            //printf( "Selecting %d new infectees by skipping through %d candidates %d at a time.\n", new_infections, num_eligible_agents, step );
-            for (i = 0; i < num_eligible_agents && selected_count < new_infections; i += step) {
-                unsigned long int selected_id = selected_indices[i];
-                //assert( selected_id > 0 ); // this can be true
-                //printf( "DEBUG: Checking if selected_id (%ld) is >= start_idx(%ld).\n", selected_id, start_idx );
-                assert( selected_id >= start_idx );
-                //printf( "DEBUG: Checking if selected_id (%ld) is <= end_idx(%ld).\n", selected_id, end_idx );
-                assert( selected_id <= end_idx );
-                //printf( "Infecting index=%d.\n", selected_id );
+#pragma omp parallel for
+    for (unsigned int node = 0; node < num_nodes; ++node) {
+        unsigned int new_infections = new_infections_array[node];
+        unsigned int num_eligible_agents = num_eligible_agents_array[node];
+        //printf( "Node=%d, new_infections=%d, num_eligible_agents=%d\n", node, new_infections, num_eligible_agents );
+
+        if (new_infections > 0 && num_eligible_agents > 0 && node2sus.find(node) != node2sus.end()) {
+            std::vector<int> &susceptible_indices = node2sus[node];
+            int num_susceptible = susceptible_indices.size();
+            int step = (new_infections >= num_susceptible) ? 1 : num_susceptible / new_infections;
+
+            for (int i = 0, selected_count = 0; i < num_susceptible && selected_count < new_infections; i += step) {
+                unsigned long int selected_id = susceptible_indices[i];
+                //printf( "Infecting %ld\n", selected_id );
                 infected[selected_id] = true;
                 incubation_timer[selected_id] = 7;
                 infection_timer[selected_id] = 14 + rand() % 2;
-                new_infection_idxs_out[ selected_count++ ] = selected_id;
+                selected_count++;
             }
         }
     }
 }
-#endif
 
 typedef struct {
     int node_id;
