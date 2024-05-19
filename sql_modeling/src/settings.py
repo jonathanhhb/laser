@@ -8,7 +8,9 @@ duration = 20*365
 #duration = 2000
 #base_infectivity = 0.9e7 # ccs = 55-140k
 #base_infectivity = 2e7 # ccs = 55-140k
-base_infectivity = 2
+#base_infectivity = 1e7 # ccs = 30-55k base_infectivity = 0.2 # 372 # cbr=crude bith rate
+#base_infectivity = 13.52
+base_infectivity = 3.0 # 8.74
 cbr=17.5
 cbr_file="cbrs.csv"
 births_file="births.csv"
@@ -20,7 +22,6 @@ campaign_day=6000000
 campaign_coverage=0.75
 
 campaign_node=15
-
 migration_fraction=0.098 # 0.10 # 0.013
 migration_interval=700000
 mortality_interval=1 # 30

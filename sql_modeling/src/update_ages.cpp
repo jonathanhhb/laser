@@ -14,7 +14,11 @@
 #include <cassert>
 #include <math.h>
 #include <pthread.h>
+#include <omp.h>
+#include <immintrin.h>
 
+
+unsigned recovered_counter = 0;
 
 extern "C" {
 
@@ -33,14 +37,55 @@ extern "C" {
  *             The array is modified in place.
  */
 const float one_day = 1.0f/365.0f;
-void update_ages(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
+void update_ages_vanilla(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
     //printf( "%s: from %d to %d.\n", __FUNCTION__, start_idx, stop_idx );
+    #pragma omp parallel for
     for (size_t i = start_idx; i <= stop_idx; i++) {
-        if( ages[i] < 0 )
+        if( ages[i] >= 0 )
         {
-            continue;
+            ages[i] += one_day;
         }
-        ages[i] += one_day;
+    }
+}
+
+// avxv2
+void update_ages(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
+    #pragma omp parallel for
+    for (size_t i = start_idx; i <= stop_idx; i += 8) {
+        // Load age values into SIMD registers
+        __m256 ages_vec = _mm256_loadu_ps(&ages[i]);
+
+        // Create a vector with the one_day value replicated 8 times
+        __m256 one_day_vec = _mm256_set1_ps(one_day);
+
+        // Mask for elements greater than or equal to zero
+        __m256 mask = _mm256_cmp_ps(ages_vec, _mm256_setzero_ps(), _CMP_GE_OQ);
+
+        // Increment age values by one_day for elements greater than or equal to zero
+        ages_vec = _mm256_blendv_ps(ages_vec, _mm256_add_ps(ages_vec, one_day_vec), mask);
+
+        // Store the result back to memory
+        _mm256_storeu_ps(&ages[i], ages_vec);
+    }
+}
+
+void update_ages_avx512(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
+//void update_ages(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
+    #pragma omp parallel for
+    for (size_t i = start_idx; i <= stop_idx; i++) {
+        if (ages[i] >= 0) {
+            // Load the age value into a SIMD register
+            __m128 age = _mm_load_ss(&ages[i]);
+
+            // Load the one_day value into a SIMD register
+            __m128 one_day_vec = _mm_set_ss(one_day);
+
+            // Add one_day to the age value
+            age = _mm_add_ss(age, one_day_vec);
+
+            // Store the result back to memory
+            _mm_store_ss(&ages[i], age);
+        }
     }
 }
 
@@ -58,9 +103,9 @@ size_t progress_infections(
     bool* immunity,
     uint32_t * recovered_idxs
 ) {
-    unsigned long int activators = 0;
-    unsigned recovered_counter = 0;
-
+    recovered_counter = 0;
+#if 0
+    //#pragma omp parallel for
     for (int i = start_idx; i <= end_idx; ++i) {
         if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
             // Incubation timer: decrement for each person
@@ -82,11 +127,56 @@ size_t progress_infections(
                     immunity_timer[i] = -1;
                     immunity[i] = true;
                     //printf( "Recovery.\n" );
+                    //#pragma omp critical
                     recovered_idxs[ recovered_counter++ ] = i;
                 }
             }
         }
     }
+#else
+
+    // Allocate a 2D vector to store thread-local buffers
+    std::vector<std::vector<int>> thread_local_buffers(omp_get_max_threads());
+
+#pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        std::vector<int> &local_buffer = thread_local_buffers[thread_id];
+
+#pragma omp for
+        for (unsigned long int i = start_idx; i <= end_idx; ++i) {
+            if (incubation_timer[i] >= 1) {
+                incubation_timer[i]--;
+            }
+
+            // Infection timer: decrement for each infected person
+            if (infection_timer[i] >= 1) {
+                infection_timer[i]--;
+
+                // Some people clear
+                if (infection_timer[i] == 0) {
+                    infected[i] = 0;
+
+                    // Recovereds gain immunity
+                    immunity_timer[i] = -1;
+                    immunity[i] = true;
+
+                    local_buffer.push_back(i);
+                }
+            }
+        }
+    }
+
+    // Accumulate results from thread-local buffers
+    int global_counter = 0;
+    for (const auto &buffer : thread_local_buffers) {
+        for (int idx : buffer) {
+            recovered_idxs[global_counter++] = idx;
+        }
+    }
+    recovered_counter = global_counter;
+
+#endif
     return recovered_counter;
 }
 
@@ -96,6 +186,7 @@ void progress_immunities(
     signed char * immunity_timer,
     bool* immunity
 ) {
+    #pragma omp parallel for
     for (int i = start_idx; i <= end_idx; ++i) {
         if( immunity[i] && immunity_timer[i] > 0 )
         {
@@ -149,6 +240,7 @@ void calculate_new_infections(
 
     // We are not yet counting E in our regular report, so we have to count them here.
     // Is that 'expensive'? Not sure yet.
+    //#pragma omp parallel for
     for (int i = start_idx; i <= end_idx; ++i) {
         if( incubation_timers[i] >= 1 ) {
             exposed_counts_by_bin[ node[ i ] ] ++;
@@ -158,6 +250,7 @@ void calculate_new_infections(
     }
 
     // new infections = Infected frac * infectivity * susceptible frac * pop
+    #pragma omp parallel for
     for (int i = 0; i < num_nodes; ++i) {
         if( exposed_counts_by_bin[ i ] > infected_counts[ i ] )
         {
@@ -253,6 +346,73 @@ void handle_new_infections(
             incubation_timer[selected_id] = 7;
             infection_timer[selected_id] = 14 + rand() % 2;
             new_infection_idxs_out[ selected_count++ ] = selected_id;
+        }
+    }
+}
+
+void handle_new_infections_mp(
+    unsigned long int start_idx,
+    unsigned long int end_idx,
+    //int node,
+    unsigned int num_nodes,
+    uint32_t * agent_node,
+    bool * infected,
+    bool * immunity,
+    unsigned char  * incubation_timer,
+    unsigned char  * infection_timer,
+    int * new_infections_array,
+    //int * new_infection_idxs_out,
+    int * num_eligible_agents_array
+) {
+    std::unordered_map<int, std::vector<int>> node2sus;
+
+#pragma omp parallel
+    {
+        // Thread-local buffers to collect susceptible indices by node
+        std::unordered_map<int, std::vector<int>> local_node2sus;
+
+#pragma omp for nowait
+        for (unsigned long int i = start_idx; i <= end_idx; ++i) {
+            if (!infected[i] && !immunity[i]) {
+                int node = agent_node[i];
+                local_node2sus[node].push_back(i);
+                //printf( "Found susceptible in node %d\n", node );
+            }
+        }
+
+#pragma omp critical
+        {
+            // Accumulate the local buffers into the global map
+            for (const auto &pair : local_node2sus) {
+                int node = pair.first;
+                if (node2sus.find(node) == node2sus.end()) {
+                    node2sus[node] = pair.second;
+                } else {
+                    node2sus[node].insert(node2sus[node].end(), pair.second.begin(), pair.second.end());
+                }
+            }
+        }
+    }
+
+#pragma omp parallel for
+    for (unsigned int node = 0; node < num_nodes; ++node) {
+        unsigned int new_infections = new_infections_array[node];
+        unsigned int num_eligible_agents = num_eligible_agents_array[node];
+        //printf( "Node=%d, new_infections=%d, num_eligible_agents=%d\n", node, new_infections, num_eligible_agents );
+
+        if (new_infections > 0 && num_eligible_agents > 0 && node2sus.find(node) != node2sus.end()) {
+            std::vector<int> &susceptible_indices = node2sus[node];
+            int num_susceptible = susceptible_indices.size();
+            int step = (new_infections >= num_susceptible) ? 1 : num_susceptible / new_infections;
+
+            for (int i = 0, selected_count = 0; i < num_susceptible && selected_count < new_infections; i += step) {
+                unsigned long int selected_id = susceptible_indices[i];
+                //printf( "Infecting %ld\n", selected_id );
+                infected[selected_id] = true;
+                incubation_timer[selected_id] = 7;
+                infection_timer[selected_id] = 14 + rand() % 2;
+                selected_count++;
+            }
         }
     }
 }
@@ -425,26 +585,53 @@ void collect_report(
 {
     //printf( "%s called w/ num_agents = %d, start_idx = %d, eula_idx = %d.\n", __FUNCTION__, num_agents, start_idx, eula_idx );
     for (int i = start_idx; i <= eula_idx; ++i) {
-        if( node[i] < 0 ) {
-            continue;
-        }
-        int node_id = node[i];
-        if( age[ i ] < expected_lifespan[ i ] ) {
-            if( infected[ i ] ) {
-                infection_count[ node_id ]+=1;
-                //printf( "Incrementing I count for node %d = %d from idx %d.\n", node_id, infection_count[ node_id ], i );
-            } else if( immunity[ i ] ) {
-                recovered_count[ node_id ]+=1;
-                //printf( "Incrementing R count for node %d = %d from idx %d.\n", node_id, recovered_count[ node_id ], i );
-            } else {
-                susceptible_count[ node_id ]+=1;
-                //printf( "Incrementing S count for node %d = %d from idx %d.\n", node_id, susceptible_count[ node_id ], i );
+        if( node[i] >= 0 )
+        {
+            int node_id = node[i];
+            if( age[ i ] < expected_lifespan[ i ] ) {
+                if( infected[ i ] ) {
+                    infection_count[ node_id ] ++;
+                    //printf( "Incrementing I count for node %d = %d from idx %d.\n", node_id, infection_count[ node_id ], i );
+                } else if( immunity[ i ] ) {
+                    recovered_count[ node_id ] ++;
+                    //printf( "Incrementing R count for node %d = %d from idx %d.\n", node_id, recovered_count[ node_id ], i );
+                } else {
+                    susceptible_count[ node_id ] ++;
+                    //printf( "Incrementing S count for node %d = %d from idx %d.\n", node_id, susceptible_count[ node_id ], i );
+                }
             }
         }
     }
     for (int i = eula_idx; i < num_agents; ++i) {
         int node_id = node[i];
-        recovered_count[ node_id ]++;
+        if( age[ i ] < expected_lifespan[ i ] ) {
+            recovered_count[ node_id ]++;
+        }
+    }
+}
+
+const int max_node_id = 953;
+void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
+    // This is just a very simplistic one-way linear type of infection migration
+    // I prefer to hard code a few values for this function rather than add parameters
+    // since it's most a test function.
+    int fraction = (int)(0.02*1000); // this fraction of infecteds migrate
+    unsigned long int counter = 0;
+    #pragma omp parallel for
+    for (int i = start_idx; i < num_agents; ++i) {
+        if( i != end_idx ) {
+            if( infected[ i ] && rand()%1000 < fraction )
+            {
+                if( node[ i ] > 0 )
+                {
+                    node[ i ] --;
+                }
+                else
+                {
+                    node[ i ] = max_node_id; // this should be param
+                }
+            }
+        }
     }
 }
 

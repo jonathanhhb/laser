@@ -1,21 +1,21 @@
 import sys
 import os
 
-# Append the current working directory to the beginning of sys.path
 sys.path.insert(0, os.getcwd())
 
 import pdb
+
 # Import a model
 #import laser_numpy_mode.sir_numpy as model
 import sir_numpy_c as model
 from copy import deepcopy
+import numpy as np
 
 import settings
 import demographics_settings
 import report
 
 report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
-# fractions = {}
 report_births = {}
 #report_deaths = {}
 
@@ -31,34 +31,23 @@ def collect_and_report(csvwriter, timestep, ctx):
             "R": deepcopy( cur_reco ) 
         }
     #print( f"Counts =\nS:{counts['S']}\nI:{counts['I']}\nR:{counts['R']}" )
-    def normalize( sus, inf, rec ):
+
+    def calc_totals(sus, inf, rec):
+        #return {idx: sus[idx] + inf[idx] + rec[idx] for idx in sus}
         totals = {}
-        for idx in currently_sus.keys():
-            totals[ idx ] = sus[ idx ] + inf[ idx ] + rec[ idx ]
-            if totals[ idx ] > 0:
-                sus[ idx ] /= totals[ idx ] 
-                inf[ idx ] /= totals[ idx ] 
-                rec[ idx ] /= totals[ idx ] 
-            else:
-                sus[ idx ] = 0
-                inf[ idx ] = 0
-                rec[ idx ] = 0
+        for idx in sus.keys():  # Assuming all dictionaries have the same keys
+            totals[idx] = sus[idx] + inf[idx] + rec[idx]
         return totals
-    totals = normalize( currently_sus, currently_infectious, cur_reco )
-    fractions = {
-            "S": currently_sus,
-            "I": currently_infectious,
-            "R": cur_reco 
-        }
+    totals = calc_totals( currently_sus, currently_infectious, cur_reco )
     try:
         #report.write_timestep_report( csvwriter, timestep, counts["I"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
         report.write_timestep_report( csvwriter, timestep, counts["I"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
     except Exception as ex:
         raise ValueError( f"Exception {ex} at timestep {timestep} and counts {counts['I']}, {counts['S']}, {counts['R']}" )
-    return counts, fractions, totals
+    return counts, totals
 
 def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
-    counts, fractions, totals = collect_and_report(csvwriter,0, ctx)
+    counts, totals = collect_and_report(csvwriter,0, ctx)
     if sm==-1:
         sm = settings.seasonal_multiplier
     if bi==-1:
@@ -96,13 +85,18 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
         # if we have had total fade-out, inject imports
-        big_cities=[99,507,492,472,537]
-        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0:
-            for node in range(settings.num_nodes):
-                #import_cases = int(0.1*counts["S"][node])
-                import_cases = int(counts["S"][node]/80.)
-                print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases into node {node}." )
-                model.inject_cases( ctx, sus=counts["S"], import_cases=import_cases, import_node=node )
+        #big_cities=[99,507,492,472,537]
+        big_cities=[507]
+        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0: 
+            def divide_and_round(susceptibles):
+                for node, count in susceptibles.items():
+                    susceptibles[node] = round(count / 80)
+                return list(susceptibles.values())
+            import_cases = np.array(divide_and_round( counts["S"] ), dtype=np.uint32)
+            print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases." )
+                #model.inject_cases( ctx, sus=counts["S"], import_cases=import_cases, import_node=node )
+            model.handle_transmission( ctx, import_cases, counts["S"] )
+
             #model.inject_cases( ctx, sus=counts["S"], import_cases=settings.import_cases, import_node=507 )
 
         # We almost certainly won't waste time updating everyone's ages every timestep but this is 
@@ -110,8 +104,8 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         global report_births, report_deaths 
         ( report_births, report_deaths ) = model.update_ages( ctx, totals, timestep )
 
-        # Report
-        counts, fractions, totals = collect_and_report(csvwriter,timestep,ctx)
+        # Report 
+        counts, totals = collect_and_report(csvwriter,timestep,ctx)
 
     print(f"Simulation completed. Report saved to '{settings.report_filename}'.")
     print(f"Total infecteds = {model.infecteds}, total recovereds = {model.recovereds}" )

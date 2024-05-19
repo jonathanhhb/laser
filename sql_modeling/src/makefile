@@ -4,7 +4,7 @@
 # # Define variables
 PYTHON := python3
 CC := g++
-CFLAGS := -shared -fPIC -O3 -march=native -flto -fpermissive# -mfma
+CFLAGS := -shared -fPIC -O3 -march=native -flto -fpermissive -fopenmp
 # ALSO NO: -finline-functions
 # NO: -floop-parallelize-all
 # neutral: -funroll-loops

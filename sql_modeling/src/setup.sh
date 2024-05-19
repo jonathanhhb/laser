@@ -62,6 +62,7 @@ elif [[ -n $ccs ]]; then
     cp "$src_dir/demographics_settings_1node.py" ./demographics_settings.py
     make
 fi
+
 make update_ages.so
 
 echo "Symlinks & files created in $sandbox_dir"

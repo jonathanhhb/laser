@@ -70,8 +70,9 @@ def run_ref_model():
         # Update recovered population: I->R
         R.append(R[-1] + I_queue.pop())
 
-        # Calculate new exposures
+        # Calculate new exposures 
         new_exposures = int(np.round(beta * sum(I_queue) * S[-1] / population)) 
+
         # Calculate new infections (from the exposed population)
 
         # Push new exposures into the exposed queue
@@ -432,8 +433,8 @@ class TestHandleNewInfections(unittest.TestCase):
 
             # Compare with reference results
             #self.assert( new_infections_timestep == ref_results[timestep], f"Results mismatch at timestep {timestep}" )
-            #print( f"new_infections_timestep = {new_infections_timestep}\n" )
-            #print( f"I[{timestep}] = {NI[timestep]}\n" )
+            #print( f"New Infections [test] @ {timestep} = {new_infections_timestep}\n" )
+            #print( f"New Infections [ref][ @ {timestep} = {NI[timestep]}\n" )
             self.assertAlmostEqual( new_infections_timestep, NI[timestep], delta=10 ) # , "Results mismatch at timestep " + str(timestep)
 
         # Call run_ref_model to get reference results
