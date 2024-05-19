@@ -117,7 +117,7 @@ update_ages_lib.handle_new_infections.argtypes = [
     ctypes.c_int, # num_new_infections
     #np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
 ]
-update_ages_lib.handle_new_infections_threaded.argtypes = [
+update_ages_lib.handle_new_infections_mp.argtypes = [
     ctypes.c_uint32, # num_agents
     ctypes.c_size_t,  # starting index
     ctypes.c_size_t,  # num_nodes
@@ -127,7 +127,7 @@ update_ages_lib.handle_new_infections_threaded.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. new infections to create by node
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
+    #np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
 ]
 update_ages_lib.migrate.argtypes = [
@@ -219,7 +219,7 @@ def load( pop_file ):
     data['immunity_timer'] = np.concatenate( [ unborn['immunity_timer'], data['immunity_timer'] ] ).astype(np.int8)
     data['age'] = np.concatenate( [ unborn['age'], data['age'] ] ).astype(np.float32)
     data['expected_lifespan'] = np.concatenate( [ unborn['expected_lifespan'], data['expected_lifespan'] ] ).astype(np.float32)
-    #data['home_node'] = np.ones( len(data['id'] ) ).astype(np.int32)*-1
+    data['home_node'] = np.ones( len(data['id'] ) ).astype(np.int32)*-1
 
     def clear_init_prev():
         data['incubation_timer'] = np.zeros( len( data['incubation_timer'] ) ).astype( np.uint8 )
@@ -628,8 +628,8 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = list(executor.map(htbn, relevant_nodes))
     """
-    new_infection_idxs = np.zeros(sum(new_infections_in)).astype( np.uint32 )
-    update_ages_lib.handle_new_infections_threaded(
+    # new_infection_idxs = np.zeros(sum(new_infections_in)).astype( np.uint32 )
+    update_ages_lib.handle_new_infections_mp(
     #update_ages_lib.handle_new_infections(
         unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
         inf_sus_idx, # dynamic_eula_idx,
@@ -640,7 +640,7 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
         data_in['incubation_timer'],
         data_in['infection_timer'],
         new_infections_in,
-        new_infection_idxs,
+        #new_infection_idxs,
         np.array(list(susceptible_counts.values())).astype( np.uint32 )
     )
 
@@ -660,8 +660,8 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
         if idx > 0:
             swap_to_dynamic_si( data_in, idx )
     """
-    global infecteds
-    infecteds += len(new_infection_idxs)
+    #global infecteds
+    #infecteds += len(new_infection_idxs)
     return data_in
 
 def add_new_infections( data ):
@@ -738,7 +738,7 @@ def migrate( data, timestep, **kwargs ):
         #print( "Ending migration..." )
 
     # forced garbage collection is necessary due to something in handle_new_infections but done here so it's not done every timestep
-    gc.collect()
+    #gc.collect()
     return data
 
 def distribute_interventions( data, timestep ):
