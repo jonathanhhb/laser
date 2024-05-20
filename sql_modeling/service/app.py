@@ -168,12 +168,13 @@ FORM_TEMPLATE = """
 def run_sim( base_infectivity, migration_fraction, seasonal_multiplier ):
     import sir_numpy_c as model
     import settings
+    import demographics_settings as ds
     import report
     from tlc import run_simulation
-    ctx = model.initialize_database()
-    ctx = model.eula_init( ctx, settings.eula_age )
+    #ctx = model.initialize_database()
+    #ctx = model.eula_init( ctx, ds.eula_age )
 
-    csv_writer = report.init()
+    #csv_writer = report.init()
 
     try:
         print( "Run sim" )

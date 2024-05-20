@@ -12,7 +12,6 @@ duration = 20*365
 #base_infectivity = 13.52
 base_infectivity = 3.0 # 8.74
 cbr=17.5
-cbr_file="cbrs.csv"
 births_file="births.csv"
 # total E&W babies = 12638423
 # number of babies we expect to be born

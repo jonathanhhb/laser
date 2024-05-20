@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unordered_map>
 #include <deque>
+#include <vector>
 #include <mutex>
 #include <algorithm>
 #include <cassert>
@@ -610,7 +611,7 @@ void collect_report(
     }
 }
 
-const int max_node_id = 953;
+const int max_node_id = 1;
 void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
     // This is just a very simplistic one-way linear type of infection migration
     // I prefer to hard code a few values for this function rather than add parameters
@@ -630,31 +631,6 @@ void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint3
                 {
                     node[ i ] = max_node_id; // this should be param
                 }
-            }
-        }
-    }
-}
-
-const int max_node_id = 953;
-void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
-    // This is just a very simplistic one-way linear type of infection migration
-    // I prefer to hard code a few values for this function rather than add parameters
-    // since it's most a test function.
-    int fraction = (int)(0.02*1000); // this fraction of infecteds migrate
-    unsigned long int counter = 0;
-    for (int i = start_idx; i < num_agents; ++i) {
-        if( i==end_idx ) {
-            return;
-        }
-        if( infected[ i ] && rand()%1000 < fraction )
-        {
-            if( node[ i ] > 0 )
-            {
-                node[ i ] --;
-            }
-            else
-            {
-                node[ i ] = max_node_id; // this should be param
             }
         }
     }

@@ -21,13 +21,14 @@ COPY sir_numpy.py .
 COPY sir_sql.py .
 COPY report.py .
 COPY update_ages.cpp .
-RUN g++ -shared -fPIC -O3 -march=native -flto -fpermissive update_ages.cpp -o update_ages.so
+RUN g++ -shared -fPIC -O3 -march=native -flto -fpermissive -fopenmp update_ages.cpp -o update_ages.so
 COPY model_numpy/eula.py model_numpy/ 
 COPY model_sql/eula.py model_sql/ 
 
 COPY modeled_pop.csv.gz .
 #COPY cbrs.csv .
 COPY fits.npy .
+COPY cbrs.csv .
 
 COPY post_proc.py .
 
