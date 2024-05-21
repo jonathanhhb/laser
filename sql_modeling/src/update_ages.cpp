@@ -17,7 +17,7 @@
 #include <omp.h>
 #include <immintrin.h>
 
-
+#define SIMD_WIDTH 8     // AVX2 processes 8 integers at a time
 unsigned recovered_counter = 0;
 
 extern "C" {
@@ -104,36 +104,6 @@ size_t progress_infections(
     uint32_t * recovered_idxs
 ) {
     recovered_counter = 0;
-#if 0
-    //#pragma omp parallel for
-    for (int i = start_idx; i <= end_idx; ++i) {
-        if (infected[i] ) { // everyone should be infected, possible tiny optimization by getting rid of this
-            // Incubation timer: decrement for each person
-            if (incubation_timer[i] >= 1) {
-                incubation_timer[i] --;
-            }
-
-            // Infection timer: decrement for each infected person
-            if (infection_timer[i] >= 1) {
-                infection_timer[i] --;
-
-                // Some people clear
-                if ( infection_timer[i] == 0) {
-                    infected[i] = 0;
-
-                    // Recovereds gain immunity
-                    //immunity_timer[i] = rand() % (30) + 10;  // Random integer between 10 and 40
-                    // Make immunity permanent for now; we'll want this configurable at some point
-                    immunity_timer[i] = -1;
-                    immunity[i] = true;
-                    //printf( "Recovery.\n" );
-                    //#pragma omp critical
-                    recovered_idxs[ recovered_counter++ ] = i;
-                }
-            }
-        }
-    }
-#else
 
     // Allocate a 2D vector to store thread-local buffers
     std::vector<std::vector<int>> thread_local_buffers(omp_get_max_threads());
@@ -176,7 +146,6 @@ size_t progress_infections(
     }
     recovered_counter = global_counter;
 
-#endif
     return recovered_counter;
 }
 
@@ -364,6 +333,7 @@ void handle_new_infections_mp(
     //int * new_infection_idxs_out,
     int * num_eligible_agents_array
 ) {
+    //printf( "handle_new_infections_mp: start_idx=%ld, end_idx=%ld.\n", start_idx, end_idx );
     std::unordered_map<int, std::vector<int>> node2sus;
 
 #pragma omp parallel
@@ -610,6 +580,7 @@ void collect_report(
     }
 }
 
+#if 0
 const int max_node_id = 953;
 void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint32_t * node ) {
     // This is just a very simplistic one-way linear type of infection migration
@@ -634,6 +605,61 @@ void migrate( int num_agents, int start_idx, int end_idx, bool * infected, uint3
         }
     }
 }
+#endif
+
+//////////////////////////////////////////////////////////////////////
+// Helper function to select destination
+static inline int select_destination(int source_index, double random_draw, double *attraction_probs, int num_locations) {
+    for (int i = 0; i < num_locations; ++i) {
+        if (attraction_probs[source_index * num_locations + i] > random_draw) {
+            return i;
+        }
+    }
+    return num_locations - 1;  // Fallback to the last index if none found (shouldn't normally happen)
+}
+
+// The main function to be called from Python
+void migrate(
+    int start_idx,
+    int end_idx,
+    bool *infected,
+    unsigned char  * incubation_timer,
+    int *data_node,
+    int *data_home_node,
+    double *attraction_probs,
+    double migration_fraction,
+    int num_locations
+) {
+    int num_agents = end_idx - start_idx;
+    //printf( "[migrate] num_agents = %d\n", num_agents );
+
+    #pragma omp parallel for
+    for (int i = start_idx; i <= end_idx; ++i) {
+        if (infected[i] && incubation_timer[i] <= 0) {
+            double rand_value = (double)rand() / RAND_MAX;
+            if (rand_value < migration_fraction) {
+                int source_index = data_node[i];
+                double random_draw = (double)rand() / RAND_MAX;
+                int destination_index = -1;
+
+                // Find the destination index based on attraction probabilities
+                for (int j = 0; j < num_locations; ++j) {
+                    if (attraction_probs[source_index * num_locations + j] > random_draw) {
+                        destination_index = j;
+                        break;
+                    }
+                }
+
+                if (destination_index != -1) {
+                    data_home_node[i] = data_node[i];
+                    //printf( "DEBUG: Migrating individual %d from %d to %d.\n", i, data_node[i], destination_index );
+                    data_node[i] = destination_index;
+                }
+            }
+        }
+    }
+}
+//////////////////////////////////////////////////////////////////////
 
 unsigned long int campaign(
     int num_agents,
