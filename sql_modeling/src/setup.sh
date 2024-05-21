@@ -74,6 +74,7 @@ elif [[ -n $ccs ]]; then
     make
 fi
 
+cp "$src_dir/../cbrs.csv" .
 cp "$src_dir/../docker-compose.yml" .
 
 make update_ages.so

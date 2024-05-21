@@ -3,3 +3,4 @@ scipy
 sparklines
 pandas
 matplotlib
+numba
