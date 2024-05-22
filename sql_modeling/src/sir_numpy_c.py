@@ -466,13 +466,11 @@ def progress_infections( data, timestep, num_infected ):
     def vector_math():
         # Would be nice to get indices (not ids) of newly recovereds...
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
-        global dynamic_eula_idx, inf_sus_idx
+        global dynamic_eula_idx
         # infecteds should all be from inf_sus_idx (E/I) to dynamic_eula_idx (R)
         num_recovereds = update_ages_lib.progress_infections(
-            low_infected_idx,
-            high_infected_idx,
-            #inf_sus_idx,
-            #dynamic_eula_idx,
+            unborn_end_idx,
+            dynamic_eula_idx,
             data['infection_timer'],
             data['incubation_timer'],
             data['infected'],
