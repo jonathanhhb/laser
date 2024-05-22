@@ -1,6 +1,7 @@
 import ctypes
 import numpy as np
 import unittest
+import time
 
 # Load the shared library
 lib = ctypes.CDLL("./update_ages.so")
@@ -209,6 +210,40 @@ class TestProgressInfections(unittest.TestCase):
         self.assertTrue(np.all(recovered_idxs[:10] == 0))
 
     # Add more tests here with different initial values...
+    def test_performance_large_scale(self):
+        """
+        Performance test case to measure the execution time of the progress_infections function with 10 million agents.
+        """
+        start_idx = 0
+        end_idx = int(1e7) - 1
+        size = end_idx - start_idx + 1
+
+        # Generate large arrays
+        infected = np.random.choice([True, False], size=size)
+        infection_timer = np.zeros(size, dtype=np.uint8)
+        incubation_timer = np.zeros(size, dtype=np.uint8)
+
+        # Set infection_timer and incubation_timer to non-zero where infected is True
+        infection_timer[infected] = np.random.randint(1, 10, size=infected.sum(), dtype=np.uint8)
+        incubation_timer[infected] = np.random.randint(1, 5, size=infected.sum(), dtype=np.uint8)
+
+        immunity_timer = np.zeros(size, dtype=np.int8)
+        immunity = np.zeros(size, dtype=bool)
+        recovered_idxs = np.zeros(size, dtype=np.uint32)
+
+        # Measure the execution time
+        start_time = time.time()
+        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        end_time = time.time()
+
+        # Print the execution time
+        execution_time = end_time - start_time
+        print(f"Execution time for 10 million agents: {execution_time:.2f} seconds")
+
+        # Optionally, perform some assertions
+        self.assertTrue(result >= 0)
+        self.assertTrue(np.all(recovered_idxs[:result] != 0))
+
 
 if __name__ == '__main__':
     unittest.main()
