@@ -133,11 +133,15 @@ update_ages_lib.handle_new_infections_mp.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
 ]
 update_ages_lib.migrate.argtypes = [
-    ctypes.c_uint32, # num_agents
-    ctypes.c_size_t,  # starting index
-    ctypes.c_size_t,  # max index
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
+    ctypes.c_int, # start_idx
+    ctypes.c_int, # stop_idx
+    np.ctypeslib.ndpointer(dtype=bool, flags="C_CONTIGUOUS"),  # infected
+    np.ctypeslib.ndpointer(dtype=np.uint8, flags="C_CONTIGUOUS"),  # incubation_timer
+    np.ctypeslib.ndpointer(ctypes.c_uint32, flags="C_CONTIGUOUS"),  # data_node
+    np.ctypeslib.ndpointer(ctypes.c_int32, flags="C_CONTIGUOUS"),  # data_home_node
+    np.ctypeslib.ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # attraction_probs
+    ctypes.c_double,  # migration_fraction
+    ctypes.c_int,  # num_locations
 ]
 update_ages_lib.collect_report.argtypes = [
     ctypes.c_uint32, # num_agents
@@ -284,6 +288,7 @@ def swap_to_dynamic_eula( data, individual_idx ):
         # Write temp values to current
         data[ col ][ individual_idx ] = elem
     dynamic_eula_idx -= 1
+    #print( f"dynamic_eula_idx = {dynamic_eula_idx}" )
     global recovereds
     recovereds += 1
     #print( f"recovereds = {recovereds}" )
@@ -333,6 +338,7 @@ def collect_report( data ):
 
     cr_start = time.time()
     # HACK TO TEST PERF OF C collect_report
+    #print( f"unborn_end_idx={unborn_end_idx}, dynamic_eula_idx={dynamic_eula_idx}." )
     update_ages_lib.collect_report(
             len( data['node'] ),
             unborn_end_idx,
@@ -462,13 +468,11 @@ def progress_infections( data, timestep, num_infected ):
     def vector_math():
         # Would be nice to get indices (not ids) of newly recovereds...
         recovered_idxs = np.zeros( num_infected ).astype( np.uint32 )
-        global dynamic_eula_idx, inf_sus_idx
+        global dynamic_eula_idx
         # infecteds should all be from inf_sus_idx (E/I) to dynamic_eula_idx (R)
         num_recovereds = update_ages_lib.progress_infections(
-            low_infected_idx,
-            high_infected_idx,
-            #inf_sus_idx,
-            #dynamic_eula_idx,
+            unborn_end_idx,
+            dynamic_eula_idx,
             data['infection_timer'],
             data['incubation_timer'],
             data['infected'],
@@ -634,7 +638,8 @@ def handle_transmission( data_in, new_infections_in, susceptible_counts ):
     update_ages_lib.handle_new_infections_mp(
     #update_ages_lib.handle_new_infections(
         unborn_end_idx, # we waste a few cycles now coz the first block is immune from maternal immunity
-        inf_sus_idx, # dynamic_eula_idx,
+        #inf_sus_idx, # dynamic_eula_idx,
+        dynamic_eula_idx,
         settings.num_nodes,
         data_in['node'],
         data_in['infected'],
@@ -699,6 +704,7 @@ def migrate( data, timestep, **kwargs ):
         destination_location = select_destination(source_location, random_draw)
         city = all_cities[ destination_location ]
         """
+        """
         #print( "Starting migration..." )
         # Let's migrate 1% of infected agents.
         # Select indices where 'infected' is True
@@ -729,14 +735,18 @@ def migrate( data, timestep, **kwargs ):
             data['node'][selected_indices] = np.array(dest_nodes)
 
         # Pass source ids and destinations to function?
-            """
-            update_ages_lib.migrate(
-                len(data['age']),
-                unborn_end_idx,
-                dynamic_eula_idx,
-                data['infected'],
-                data['node'])
-            """
+        """
+        update_ages_lib.migrate(
+            unborn_end_idx,
+            dynamic_eula_idx,
+            data['infected'],
+            data['incubation_timer'],
+            data['node'],
+            data['home_node'],
+            attraction_probs,
+            settings.migration_fraction,
+            demographics_settings.num_nodes
+        )
         #print( "Ending migration..." )
 
     # forced garbage collection is necessary due to something in handle_new_infections but done here so it's not done every timestep

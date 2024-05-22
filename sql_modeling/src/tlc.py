@@ -87,7 +87,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         # if we have had total fade-out, inject imports
         #big_cities=[99,507,492,472,537]
         big_cities=[507]
-        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0: 
+        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0 and timestep<1200: 
             def divide_and_round(susceptibles):
                 for node, count in susceptibles.items():
                     susceptibles[node] = round(count / 80)
@@ -126,6 +126,6 @@ if __name__ == "__main__":
     runtime = timeit( runsim, number=1 )
     print( f"Execution time = {runtime}." )
 
-    #import post_proc
-    #post_proc.analyze()
+    import post_proc
+    post_proc.analyze()
 

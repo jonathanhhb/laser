@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.9
 
 WORKDIR /app
 
@@ -14,6 +14,7 @@ RUN mv spinner.css static/
 
 COPY src/settings.py .
 COPY src/demographics_settings_ew.py .
+RUN mv demographics_settings_ew.py demographics_settings.py 
 COPY src/tlc.py .
 COPY src/sir_numpy_c.py .
 COPY src/sir_numpy.py .

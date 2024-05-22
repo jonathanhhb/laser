@@ -1,13 +1,78 @@
 import pandas as pd
 from scipy.stats import binom
 from scipy.optimize import curve_fit
+from scipy import signal
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-import pdb
 
 burnin = 1000
+def get_wavelet_power_peak():
+    # setup and execute wavelet transform
+    def wavelet(M,s):
+         return signal.morlet2(M, s, w=6)
+
+    def pad_data(x):
+        """
+        Pad data to the next power of 2
+        """
+        nx = len(x) # number of samples
+        nx2 = (2**np.ceil(np.log(nx)/np.log(2))).astype(int) # next power of 2
+        x2 = np.zeros(nx2, dtype=x.dtype) # pad to next power of 2
+        offset = (nx2-nx)//2 # offset
+        x2[offset:(offset+nx)] = x # copy
+        return x2
+
+    def coi_mask(b, T, min_period, max_period):
+        """
+        Cone of influence mask
+        """
+        coi = np.tile((np.ptp(T)/2 - np.abs(T - np.mean(T))) / np.sqrt(2), (b.shape[0], 1))
+        s = np.tile(np.linspace(min_period, max_period, b.shape[0]), (b.shape[1], 1)).T
+        return s >= coi
+
+    def get_cases(node_id=0):
+        df = pd.read_csv('simulation_output.csv')
+
+        # Filter rows where Node is 507
+        df_filtered = df[df['Node'] == node_id]
+
+        # Calculate the week number based on Timestep
+        df_filtered['Week'] = df_filtered['Timestep'] // 7
+
+        # Group by Week and sum the New Infections for each week
+        weekly_new_infections = df_filtered.groupby('Week')['New Infections'].sum().reset_index()
+        return weekly_new_infections["New Infections"].to_numpy()
+
+    def log_transform(x, debug=1):
+        """
+        Log transform for case data
+        """ 
+        # add one and take log
+        x = np.log(x+1)
+        # set mean=0 and std=1
+        m = np.mean(x)
+        s = np.std(x)
+        x = (x - m)/s
+        return x
+
+    MAX_PERIOD = 7*52 # in weeks
+    widths = np.logspace(np.log10(1), np.log10(MAX_PERIOD), int(MAX_PERIOD))
+    y = widths / 52
+
+    cases = get_cases(507)
+    log_cases = pad_data(log_transform(cases))
+    cwt = signal.cwt(log_cases, wavelet, widths)  # (M x N)
+    # Number of time steps in padded time series
+    nt = len(cases)
+    # trim matrix
+    offset = (cwt.shape[1] - nt) // 2
+    cwt = cwt[:, offset:offset + nt]
+    cwt2 = np.real(cwt * np.conj(cwt))
+    power_peak_period = y[np.argmax(cwt2.mean(axis=1))]
+    return power_peak_period 
+
 def analyze_ccs():
     # Load the CSV file
     cases_df = pd.read_csv('simulation_output.csv')
@@ -128,8 +193,22 @@ def analyze():
 
     # Create a DataFrame with the metric and its value
     data = {
-        "metric": ["mean_new_infs_per_year", "mean_new_infs_per_year_london", "mean_ccs_fraction_big_cities", "ccs_median_fraction", "sigmoid_slope" ],
-        "value": [average_new_infections_per_year, average_new_infections_per_year_london, ccs_bigcity_mean, ccs_median, sig_slope ]
+        "metric": [
+            "mean_new_infs_per_year",
+            "mean_new_infs_per_year_london",
+            "mean_ccs_fraction_big_cities",
+            "ccs_median_fraction",
+            "sigmoid_slope",
+            "max_wavelet_power_period"
+            ],
+        "value": [
+            average_new_infections_per_year,
+            average_new_infections_per_year_london,
+            ccs_bigcity_mean,
+            ccs_median,
+            sig_slope,
+            get_wavelet_power_peak()
+        ]
     }
     report_df = pd.DataFrame(data)
 
