@@ -335,7 +335,6 @@ def collect_report( data ):
     recovered_counts_raw = np.zeros( settings.num_nodes ).astype( np.uint32 )
 
     cr_start = time.time()
-    # HACK TO TEST PERF OF C collect_report
     #print( f"unborn_end_idx={unborn_end_idx}, dynamic_eula_idx={dynamic_eula_idx}." )
     update_ages_lib.collect_report(
             len( data['node'] ),
