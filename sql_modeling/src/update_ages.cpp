@@ -70,26 +70,6 @@ void update_ages(unsigned long int start_idx, unsigned long int stop_idx, float 
     }
 }
 
-void update_ages_avx512(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
-//void update_ages(unsigned long int start_idx, unsigned long int stop_idx, float *ages) {
-    #pragma omp parallel for
-    for (size_t i = start_idx; i <= stop_idx; i++) {
-        if (ages[i] >= 0) {
-            // Load the age value into a SIMD register
-            __m128 age = _mm_load_ss(&ages[i]);
-
-            // Load the one_day value into a SIMD register
-            __m128 one_day_vec = _mm_set_ss(one_day);
-
-            // Add one_day to the age value
-            age = _mm_add_ss(age, one_day_vec);
-
-            // Store the result back to memory
-            _mm_store_ss(&ages[i], age);
-        }
-    }
-}
-
 /*
  * Progress all infections. Collect the indexes of those who recover. 
  * Assume recovered_idxs is pre-allocated to same size as infecteds.
@@ -167,6 +147,48 @@ void progress_immunities(
                 //printf( "New Susceptible.\n" );
             }
         }    
+    }
+}
+
+void progress_immunities_avx2(
+    int start_idx,
+    int end_idx,
+    signed char * immunity_timer,
+    bool* immunity
+) {
+    int i;
+    __m256i vec_one = _mm256_set1_epi32(1);
+    __m256i vec_zero = _mm256_set1_epi32(0);
+
+    #pragma omp parallel for
+    for (i = start_idx; i <= end_idx; i += 8) {
+        if (i + 7 <= end_idx) {
+            // Load 8 elements from immunity and immunity_timer arrays
+            __m256i vec_immunity = _mm256_loadu_si256((__m256i*)&immunity[i]);
+            __m256i vec_immunity_timer = _mm256_loadu_si256((__m256i*)&immunity_timer[i]);
+
+            // Compare immunity array with zero to get a mask of immune individuals
+            __m256i mask = _mm256_cmpgt_epi32(vec_immunity, vec_zero);
+            // Reduce immunity_timer by 1 for those that are immune
+            vec_immunity_timer = _mm256_sub_epi32(vec_immunity_timer, _mm256_and_si256(mask, vec_one));
+            // If immunity_timer reaches zero, set immunity to false
+            __m256i reset_mask = _mm256_cmpeq_epi32(vec_immunity_timer, vec_zero);
+            vec_immunity = _mm256_andnot_si256(reset_mask, vec_immunity);
+
+            // Store the updated values back to the arrays
+            _mm256_storeu_si256((__m256i*)&immunity[i], vec_immunity);
+            _mm256_storeu_si256((__m256i*)&immunity_timer[i], vec_immunity_timer);
+        } else {
+            // Handle the remaining elements
+            for (int j = i; j <= end_idx; ++j) {
+                if (immunity[j] && immunity_timer[j] > 0) {
+                    immunity_timer[j]--;
+                    if (immunity_timer[j] == 0) {
+                        immunity[j] = false;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -540,7 +562,7 @@ void handle_new_infections_threaded(
  - susceptible_count: An array to store the count of susceptible agents per node.
  - recovered_count: An array to store the count of recovered agents per node.
 */
-void collect_report( 
+void collect_report_vanilla( 
     int num_agents,
     int start_idx,
     int eula_idx,
@@ -578,6 +600,69 @@ void collect_report(
         if( age[ i ] < expected_lifespan[ i ] ) {
             recovered_count[ node_id ]++;
         }
+    }
+}
+
+void collect_report(
+    int num_agents,
+    int start_idx,
+    int eula_idx,
+    uint32_t * node,
+    bool * infected,
+    bool * immunity,
+    float * age,
+    float * expected_lifespan, // so we can not count dead people
+    uint32_t * infection_count,
+    uint32_t * susceptible_count,
+    uint32_t * recovered_count
+        )
+{
+    unsigned int num_nodes=954; // pass this in
+    #pragma omp parallel
+    {
+        // Thread-local buffers
+        int *local_infection_count = (int*) calloc(num_nodes, sizeof(int));
+        int *local_recovered_count = (int*) calloc(num_nodes, sizeof(int));
+        int *local_susceptible_count = (int*) calloc(num_nodes, sizeof(int));
+
+        #pragma omp for nowait
+        for (int i = start_idx; i <= eula_idx; ++i) {
+            if (node[i] >= 0) {
+                int node_id = node[i];
+                if (age[i] < expected_lifespan[i]) {
+                    if (infected[i]) {
+                        local_infection_count[node_id]++;
+                    } else if (immunity[i]) {
+                        local_recovered_count[node_id]++;
+                    } else {
+                        local_susceptible_count[node_id]++;
+                    }
+                }
+            }
+        }
+
+        #pragma omp for nowait
+        for (int i = eula_idx; i < num_agents; ++i) {
+            int node_id = node[i];
+            if (age[i] < expected_lifespan[i]) {
+                local_recovered_count[node_id]++;
+            }
+        }
+
+        // Combine local counts into global counts
+        #pragma omp critical
+        {
+            for (int j = 0; j < num_nodes; ++j) {
+                infection_count[j] += local_infection_count[j];
+                recovered_count[j] += local_recovered_count[j];
+                susceptible_count[j] += local_susceptible_count[j];
+            }
+        }
+
+        // Free local buffers
+        free(local_infection_count);
+        free(local_recovered_count);
+        free(local_susceptible_count);
     }
 }
 
