@@ -58,6 +58,19 @@ def load( pop_file ):
     # Pad with a bunch of zeros
     return columns
 
+def get_beta_samples(number):
+    from scipy.stats import beta
+    # Define parameters
+    lifespan_mean = 75
+    lifespan_max_value = 110
+
+    # Scale and shift parameters to fit beta distribution
+    alpha = 4  # Adjust this parameter to increase lower spread
+    beta_ = 2
+    samples = beta.rvs(alpha, beta_, size=number)
+    scaled_samples = samples * (lifespan_max_value - 1) + 1
+    return scaled_samples 
+
 def add_expansion_slots( columns, num_slots=settings.expansion_slots ):
     num_slots = int(num_slots)
     print( f"Adding {num_slots} expansion slots for future babies." )
@@ -75,8 +88,7 @@ def add_expansion_slots( columns, num_slots=settings.expansion_slots ):
 
     new_infection_timer = np.zeros( num_slots ).astype( np.float32 )
     new_incubation_timer = np.zeros( num_slots ).astype( np.float32 )
-    import sir_sql
-    lifespan_samples = sir_sql.get_beta_samples( num_slots )
+    lifespan_samples = get_beta_samples( num_slots )
     new_expected_lifespan = np.array( lifespan_samples ).astype( dtype=np.float32 )
 
     settings.nodes = [ node for node in np.unique(columns['node']) ]
