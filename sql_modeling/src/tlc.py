@@ -7,7 +7,6 @@ import pdb
 # Import a model
 #import laser_numpy_mode.sir_numpy as model
 import sir_numpy_c as model
-from copy import deepcopy
 import numpy as np
 
 import settings
@@ -15,7 +14,7 @@ import demographics_settings
 #from laser_numpy_model import report
 import report
 
-report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
+#report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
 report_births = {}
 #report_deaths = {}
 
@@ -26,9 +25,9 @@ for i in range(demographics_settings.num_nodes):
 def collect_and_report(csvwriter, timestep, ctx):
     currently_infectious, currently_sus, cur_reco = model.collect_report( ctx )
     counts = {
-            "S": deepcopy( currently_sus ),
-            "I": deepcopy( currently_infectious ),
-            "R": deepcopy( cur_reco ) 
+            "S": currently_sus,
+            "I": currently_infectious,
+            "R": cur_reco 
         }
     #print( f"Counts =\nS:{counts['S']}\nI:{counts['I']}\nR:{counts['R']}" )
 
@@ -93,7 +92,8 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
                     susceptibles[node] = round(count / 80)
                 return list(susceptibles.values())
             import_cases = np.array(divide_and_round( counts["S"] ), dtype=np.uint32)
-            print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases." )
+            #print( f"ELIMINATION Detected: Reseeding: Injecting {import_cases} new cases." )
+            print( f"ELIMINATION Detected: Reseeding: Injecting new cases." )
                 #model.inject_cases( ctx, sus=counts["S"], import_cases=import_cases, import_node=node )
             model.handle_transmission( ctx, import_cases, counts["S"] )
 
