@@ -152,9 +152,4 @@ def get_recovereds_by_node():
 
 def get_recovereds_by_node_np():
     return next_eula_pops
-"""
-    summary = []
-    for node in eula_dict:
-        summary.append( sum( eula_dict[node].values() ) )
-    return np.array(summary)
-"""
+

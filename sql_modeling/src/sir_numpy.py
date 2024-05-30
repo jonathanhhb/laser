@@ -265,6 +265,17 @@ def births_from_cbr( node_pops, rate=30 ):
         cbr_node = settings.fertility_interval * rate * (node_pops[node]/1000.0)/365.0
         new_babies[node] = np.random.poisson( cbr_node )
     return new_babies 
+
+def births_from_cbr_fast( node_pops_array, rate=30 ):
+    # Convert node_pops values to a NumPy array
+    #node_pops_array = np.array(list(node_pops.values()))
+
+    # Compute the cbr_node for all nodes in a vectorized manner
+    cbr_node_array = settings.fertility_interval * rate * (node_pops_array / 1000.0) / 365.0
+
+    # Generate Poisson-distributed random numbers for all nodes in a vectorized manner
+    new_babies_array = np.random.poisson(cbr_node_array)
+    return new_babies_array 
   
 def births_from_cbr_var( node_pops, rate=30 ):
     # rate can be array now
