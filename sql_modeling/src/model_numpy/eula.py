@@ -27,6 +27,7 @@ def calculate_y(x, m, b):
     return int(m * x + b)
 
 timestep_abs = 0
+next_eula_pops = np.zeros( demographics_settings.num_nodes ).astype( np.uint32 )
 
 # call out to c function for this counting
 def count_by_node_and_age( nodes, ages ):
@@ -54,11 +55,13 @@ def init():
             eula[node] = {}
         eula[node][age] = total
     """
+    global next_eula_pops 
     for node in range(settings.num_nodes):
         m, b = fits[node]
         pop = calculate_y(0, m, b)
         # print( f"Setting pop for node {node} to {pop}." )
-        eula_dict[node][44] = pop
+        #eula_dict[node][44] = pop
+        next_eula_pops[ node ] = pop
     
 
 def progress_natural_mortality( timesteps ):
@@ -131,13 +134,13 @@ def progress_natural_mortality( timesteps ):
 
     def from_lut():
         # Calculate y values using the fit parameters and x values
-
+        global next_eula_pops 
         for node in range(settings.num_nodes):
             m, b = fits[node]
             pop = calculate_y(timestep_abs, m, b)
             #print( f"pop={pop},m={m},b={b},node={node},time={timestep_abs}" )
-            eula_dict[node][44] = pop
-
+            #eula_dict[node][44] = pop
+            next_eula_pops[ node ] = pop
     from_lut()
     #python()
 
@@ -147,8 +150,11 @@ def get_recovereds_by_node():
         summary[ node ] = sum( eula_dict[node].values() )
     return summary
 
-def get_recovereds_by_node_np():   
+def get_recovereds_by_node_np():
+    return next_eula_pops
+"""
     summary = []
     for node in eula_dict:
         summary.append( sum( eula_dict[node].values() ) )
     return np.array(summary)
+"""
