@@ -8,15 +8,14 @@ import pdb
 # Import a model
 #import laser_numpy_mode.sir_numpy as model
 import sir_numpy_c as model
-from copy import deepcopy
 import numpy as np
 
 import settings
 import demographics_settings
 import report
 
-report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
-report_births = {}
+#report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
+report_births = []
 #report_deaths = {}
 
 new_infections_empty = {}
@@ -24,21 +23,14 @@ for i in range(demographics_settings.num_nodes):
     new_infections_empty[ i ] = 0
 
 def collect_and_report(csvwriter, timestep, ctx):
-    currently_infectious, currently_sus, cur_reco = model.collect_report( ctx )
+    currently_infectious, currently_sus, cur_reco, totals = model.collect_report( ctx )
     counts = {
-            "S": deepcopy( currently_sus ),
-            "I": deepcopy( currently_infectious ),
-            "R": deepcopy( cur_reco ) 
+            "S": currently_sus,
+            "I": currently_infectious,
+            "R": cur_reco 
         }
     #print( f"Counts =\nS:{counts['S']}\nI:{counts['I']}\nR:{counts['R']}" )
 
-    def calc_totals(sus, inf, rec):
-        #return {idx: sus[idx] + inf[idx] + rec[idx] for idx in sus}
-        totals = {}
-        for idx in sus.keys():  # Assuming all dictionaries have the same keys
-            totals[idx] = sus[idx] + inf[idx] + rec[idx]
-        return totals
-    totals = calc_totals( currently_sus, currently_infectious, cur_reco )
     try:
         #report.write_timestep_report( csvwriter, timestep, counts["I"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
         report.write_timestep_report( csvwriter, timestep, counts["I"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
@@ -58,7 +50,7 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
     for timestep in range(1, num_timesteps + 1):
         # We should always be in a low prev setting so this should only really ever operate
         # on ~1% of the active population
-        ctx = model.progress_infections( ctx, timestep, sum(counts["I"].values()) )
+        ctx = model.progress_infections( ctx )
 
         # The perma-immune should not consume cycles but there could be lots of waning immune
         ctx = model.progress_immunities( ctx )
@@ -84,16 +76,15 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
         if timestep>settings.burnin_delay and settings.num_nodes>1:
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
-        # if we have had total fade-out, inject imports
-        #big_cities=[99,507,492,472,537]
-        big_cities=[507]
-        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0 and timestep<1200: 
+        # if we have had total fade-out, inject imports 
+        if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0 and timestep<1200:
             def divide_and_round(susceptibles):
                 for node, count in susceptibles.items():
                     susceptibles[node] = round(count / 80)
                 return list(susceptibles.values())
             import_cases = np.array(divide_and_round( counts["S"] ), dtype=np.uint32)
-            print( f"ELIMINATION Detected: Reeseding: Injecting {import_cases} new cases." )
+            #print( f"ELIMINATION Detected: Reseeding: Injecting {import_cases} new cases." )
+            print( f"ELIMINATION Detected: Reseeding: Injecting new cases." )
                 #model.inject_cases( ctx, sus=counts["S"], import_cases=import_cases, import_node=node )
             model.handle_transmission( ctx, import_cases, counts["S"] )
 

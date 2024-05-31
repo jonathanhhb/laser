@@ -2,15 +2,17 @@ import csv
 import numpy as np
 import socket
 from sparklines import sparklines
+import time
 import pdb
 import settings
 import demographics_settings
 
-csv_report = True # False
-binary_report = False # True
+csv_report = True
+binary_report = False
 write_report = True
 publish_report = False
 new_infections = np.zeros(len(demographics_settings.nodes), dtype=np.uint32)
+wtr_time = 0
 
 # Configuration for the socket server
 HOST = 'localhost'  # Use 'localhost' for local testing
@@ -42,6 +44,7 @@ def init():
     return csvwriter
 
 def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_counts, recovered_counts, new_births, new_deaths ):
+    wtr_start = time.time()
     # This function is model agnostic
     infecteds = np.array([infected_counts[key] for key in sorted(infected_counts.keys(), reverse=True)])
     total = {key: susceptible_counts.get(key, 0) + infected_counts.get(key, 0) + recovered_counts.get(key, 0) for key in susceptible_counts.keys()}
@@ -60,7 +63,7 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
                     infected_counts[node] if node in infected_counts else 0,
                     new_infections[node],
                     recovered_counts[node] if node in recovered_counts else 0,
-                    new_births[node] if node in new_births else 0,
+                    new_births[node], #  if node in new_births else 0,
                     #new_deaths[node] if node in new_deaths else 0,
                     ]
                 )
@@ -93,6 +96,8 @@ def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_cou
             ]
             data.append(row)
         send_csv_data( client_sock, data )
+    global wtr_time
+    wtr_time += time.time() - wtr_start
 
 def stop():
     # Convert accumulated data to a NumPy array

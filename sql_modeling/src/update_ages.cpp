@@ -81,18 +81,18 @@ size_t progress_infections(
     unsigned char * incubation_timer,
     bool* infected,
     signed char * immunity_timer,
-    bool* immunity,
-    uint32_t * recovered_idxs
+    bool* immunity
+    //, uint32_t * recovered_idxs
 ) {
     recovered_counter = 0;
 
     // Allocate a 2D vector to store thread-local buffers
-    std::vector<std::vector<int>> thread_local_buffers(omp_get_max_threads());
+    //std::vector<std::vector<int>> thread_local_buffers(omp_get_max_threads());
 
 #pragma omp parallel
     {
-        int thread_id = omp_get_thread_num();
-        std::vector<int> &local_buffer = thread_local_buffers[thread_id];
+        //int thread_id = omp_get_thread_num();
+        //std::vector<int> &local_buffer = thread_local_buffers[thread_id];
 
 #pragma omp for
         for (unsigned long int i = start_idx; i <= end_idx; ++i) {
@@ -112,12 +112,13 @@ size_t progress_infections(
                     immunity_timer[i] = -1;
                     immunity[i] = true;
 
-                    local_buffer.push_back(i);
+                    //local_buffer.push_back(i);
                 }
             }
         }
     }
 
+    /*
     // Accumulate results from thread-local buffers
     int global_counter = 0;
     for (const auto &buffer : thread_local_buffers) {
@@ -126,6 +127,7 @@ size_t progress_infections(
         }
     }
     recovered_counter = global_counter;
+    */
 
     return recovered_counter;
 }
@@ -147,48 +149,6 @@ void progress_immunities(
                 //printf( "New Susceptible.\n" );
             }
         }    
-    }
-}
-
-void progress_immunities_avx2(
-    int start_idx,
-    int end_idx,
-    signed char * immunity_timer,
-    bool* immunity
-) {
-    int i;
-    __m256i vec_one = _mm256_set1_epi32(1);
-    __m256i vec_zero = _mm256_set1_epi32(0);
-
-    #pragma omp parallel for
-    for (i = start_idx; i <= end_idx; i += 8) {
-        if (i + 7 <= end_idx) {
-            // Load 8 elements from immunity and immunity_timer arrays
-            __m256i vec_immunity = _mm256_loadu_si256((__m256i*)&immunity[i]);
-            __m256i vec_immunity_timer = _mm256_loadu_si256((__m256i*)&immunity_timer[i]);
-
-            // Compare immunity array with zero to get a mask of immune individuals
-            __m256i mask = _mm256_cmpgt_epi32(vec_immunity, vec_zero);
-            // Reduce immunity_timer by 1 for those that are immune
-            vec_immunity_timer = _mm256_sub_epi32(vec_immunity_timer, _mm256_and_si256(mask, vec_one));
-            // If immunity_timer reaches zero, set immunity to false
-            __m256i reset_mask = _mm256_cmpeq_epi32(vec_immunity_timer, vec_zero);
-            vec_immunity = _mm256_andnot_si256(reset_mask, vec_immunity);
-
-            // Store the updated values back to the arrays
-            _mm256_storeu_si256((__m256i*)&immunity[i], vec_immunity);
-            _mm256_storeu_si256((__m256i*)&immunity_timer[i], vec_immunity_timer);
-        } else {
-            // Handle the remaining elements
-            for (int j = i; j <= end_idx; ++j) {
-                if (immunity[j] && immunity_timer[j] > 0) {
-                    immunity_timer[j]--;
-                    if (immunity_timer[j] == 0) {
-                        immunity[j] = false;
-                    }
-                }
-            }
-        }
     }
 }
 

@@ -3,7 +3,6 @@ import pdb
 #import laser_numpy_mode.sir_numpy as model
 import sir_numpy_c as model
 import numpy as np
-from copy import deepcopy
 import time
 
 import settings
@@ -13,7 +12,7 @@ import report
 
 #report.write_report = True # sometimes we want to turn this off to check for non-reporting bottlenecks
 # fractions = {}
-report_births = {}
+report_births = [] # {}
 #report_deaths = {}
 transmission_time = 0
 pre_transmission_time = 0
@@ -27,43 +26,26 @@ mig_time = 0
 iv_time = 0
 ani_time = 0
 import_time = 0
-wtr_time = 0
+pi_time = 0
 
 new_infections_empty = {}
 for i in range(demographics_settings.num_nodes):
     new_infections_empty[ i ] = 0
 
 def collect_and_report(csvwriter, timestep, ctx):
-    #currently_infectious, currently_exposed, currently_sus, cur_reco = model.collect_report( ctx )
-    currently_infectious, currently_sus, cur_reco = model.collect_report( ctx )
+    currently_infectious, currently_sus, cur_reco, totals = model.collect_report( ctx )
     counts = {
-            #"S": deepcopy( currently_sus ),
             "S": currently_sus,
-            #"E": deepcopy( currently_exposed ),
-            #"I": deepcopy( currently_infectious ),
             "I": currently_infectious,
-            #"R": deepcopy( cur_reco ) 
             "R": cur_reco 
         }
     #print( f"Counts =\nS:{counts['S']}\nI:{counts['I']}\nR:{counts['R']}" )
-    def calculate_totals(sus, inf, rec):
-        #return {idx: sus[idx] + inf[idx] + rec[idx] for idx in sus}
-        totals = {}
-        for idx in sus.keys():  # Assuming all dictionaries have the same keys
-            totals[idx] = sus[idx] + inf[idx] + rec[idx]
-        return totals
-    totals = calculate_totals( currently_sus, currently_infectious, cur_reco )
 
-    #print( counts["S"][10] )
-    start_time = time.time()
     try:
         report.write_timestep_report( csvwriter, timestep, counts["I"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
         #report.write_timestep_report( csvwriter, timestep, counts["I"], counts["E"], counts["S"], counts["R"], new_births=report_births, new_deaths={} )
     except Exception as ex:
         raise ValueError( f"Exception {ex} at timestep {timestep} and counts {counts['I']}, {counts['S']}, {counts['R']}" )
-    end_time = time.time()
-    global wtr_time
-    wtr_time += (end_time-start_time)
     return counts, totals
 
 def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
@@ -91,12 +73,11 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             iv_time = 0
             ani_time = 0
             import_time = 0
-            wtr_time = 0
 
         start_time = time.time()
         # We should always be in a low prev setting so this should only really ever operate
         # on ~1% of the active population
-        ctx = model.progress_infections( ctx, timestep, sum(counts["I"].values()) )
+        ctx = model.progress_infections( ctx )
         end_time = time.time()
         prog_infs_time += (end_time-start_time)
         start_time = end_time
@@ -181,21 +162,24 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
 
     print(f"Simulation completed. Report saved to '{settings.report_filename}'.")
     print(f"transmission_time = {transmission_time}" )
-    #print(f"pre_transmission_time = {pre_transmission_time}" )
-    print(f"prog_infs_time = {prog_infs_time}" )
+    print(f"prog_infs_time (includes i_to_r_swap_time) = {prog_infs_time}" )
+    print(f"pi_time = {model.pi_time}" )
     print(f"prog_imms_time = {prog_imms_time}" )
     print(f"new_infs_time = {new_infs_time}" )
-    print(f"report_time = {report_time}" )
-    print(f"vd_time = {vd_time}" )
     print(f"mig_time (include garg collect) = {mig_time}" )
     print(f"iv_time = {iv_time}" )
     print(f"ani_time = {ani_time}" )
     print(f"import_time = {import_time}" )
-    print(f"wtr_time = {wtr_time}" )
     print(f"s_to_i_swap_time = {model.s_to_i_swap_time}" )
     print(f"i_to_r_swap_time = {model.i_to_r_swap_time}" )
     print(f"cr_time = {model.cr_time}" )
     print(f"eula_reco_time = {model.eula_reco_time}" )
+    print(f"report_time = {report_time}" )
+    print(f"wtr_time = {report.wtr_time}" )
+    print(f"age_time = {model.age_time}" )
+    print(f"birth_time = {model.birth_time}" )
+    print(f"funeral_time = {model.funeral_time}" )
+    print(f"vd_time = {vd_time}" )
     print(f"Total infecteds = {model.infecteds}, total recovereds = {model.recovereds}" )
 
     #print(f"post_transmission_time = {post_transmission_time}" )
@@ -217,6 +201,6 @@ if __name__ == "__main__":
     runtime = timeit( runsim, number=1 )
     print( f"Execution time = {runtime}." )
 
-    import post_proc
-    post_proc.analyze()
+    #import post_proc
+    #post_proc.analyze()
 
