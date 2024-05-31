@@ -375,6 +375,7 @@ def collect_report( data ):
     
 
 def update_ages( data, totals, timestep ):
+    # AGING
     def update_ages_c( ages ):
         update_ages_lib.update_ages(
             unborn_end_idx,
@@ -382,30 +383,13 @@ def update_ages( data, totals, timestep ):
             ages
         )
         return ages
-    def update_ages_np( ages ):
-        one_day = 1.0 / 365.0
-        ages[unborn_end_idx:dynamic_eula_idx+1][ages[unborn_end_idx:dynamic_eula_idx+1] >= 0] += one_day
-        return ages
 
-    import numba as nb
-    @nb.njit
-    def update_ages_numba( ages ):
-    #def update_ages(ages, unborn_end_idx, dynamic_eula_idx):
-        one_day = 1.0 / 365.0
-        for i in range(unborn_end_idx, dynamic_eula_idx+1):
-            if ages[i] >= 0:
-                ages[i] += one_day
-
-    if not data:
-        raise ValueError( "update_ages called with null data variable." )
-
-    #update_ages_np( data['age'] )
     age_start_time = time.time()
     update_ages_c( data['age'] )
     global age_time
     age_time += time.time() - age_start_time
-    #update_ages_numba( data['age'] )
 
+    # FERTILITY 
     global unborn_end_idx
     def births( data, interval ):
         labor_start_time = time.time()
@@ -463,6 +447,7 @@ def update_ages( data, totals, timestep ):
         #return births_report
         return num_new_babies_by_node
 
+    # MORTALITY
     def deaths( data, timestep_delta ):
         funeral_start_time = time.time()
         death_report = eula.progress_natural_mortality(timestep_delta)

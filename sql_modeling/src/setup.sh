@@ -65,6 +65,7 @@ cp "$src_dir/post_proc.py" .
 if [[ -n $england_wales ]]; then
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/engwal_modeled.csv.gz
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/attraction_probabilities.csv.gz
+    wget https://packages.idmod.org:443/artifactory/idm-data/laser/cities.csv
     gunzip attraction_probabilities.csv.gz
     cp "$src_dir/demographics_settings_ew.py" ./demographics_settings.py
     cp "$src_dir/../Dockerfile" ./Dockerfile
@@ -74,7 +75,7 @@ elif [[ -n $ccs ]]; then
     make
 fi
 
-cp "$src_dir/../cbrs.csv" .
+cp "$src_dir/cbrs.csv" .
 cp "$src_dir/../docker-compose.yml" .
 
 make update_ages.so
