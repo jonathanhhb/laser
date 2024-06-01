@@ -55,7 +55,7 @@ cp "$src_dir/../service/app.py" app.py
 #ln -sfn "$src_dir/../service/requirements.txt" requirements.txt
 cp "$src_dir/../service/requirements.txt" requirements.txt
 #ln -sfn "$src_dir/births.csv"
-#ln -sfn "$src_dir/cbrs.csv"
+ln -sfn "$src_dir/cbrs.csv"
 
 cp "$src_dir/../service/fits.npy" .
 cp "$src_dir/settings.py" .
@@ -75,7 +75,7 @@ elif [[ -n $ccs ]]; then
     make
 fi
 
-cp "$src_dir/cbrs.csv" .
+#cp "$src_dir/cbrs.csv" .
 cp "$src_dir/../docker-compose.yml" .
 
 make update_ages.so

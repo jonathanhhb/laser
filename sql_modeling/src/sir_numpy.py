@@ -268,6 +268,7 @@ def births_from_cbr( node_pops, rate=30 ):
             act_rate = 17.5 
         elif node < len(rate):
             act_rate = rate[node]
+            print( f"Using cbr value {act_rate} for node {node} in this timestep." )
         else:
             print( f"WARNING: {node} not found in rate array! Defaulting to 17.5." )
             pdb.set_trace()
@@ -277,7 +278,7 @@ def births_from_cbr( node_pops, rate=30 ):
 
 def births_from_cbr_fast( node_pops_array, rate=30 ):
     # Convert node_pops values to a NumPy array
-    #node_pops_array = np.array(list(node_pops.values()))
+    #print( f"Using cbr value {rate} for in this timestep." )
 
     # Compute the cbr_node for all nodes in a vectorized manner
     cbr_node_array = settings.fertility_interval * rate * (node_pops_array / 1000.0) / 365.0
