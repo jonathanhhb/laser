@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, send_file
+from flask import Flask, request, render_template_string, send_file, jsonify
 import subprocess
 
 app = Flask(__name__)
@@ -183,13 +183,6 @@ def run_sim( base_infectivity, migration_fraction, seasonal_multiplier ):
         # Handle subprocess error (e.g., log the error, restart the subprocess)
         print(f"Subprocess error: {e}")
 
-
-    #from functools import partial
-    #runsim = partial( run_simulation, ctx=ctx, csvwriter=csv_writer, num_timesteps=settings.duration )
-    #runsim()
-    #import plot_spatial
-    #plot_spatial.load_and_plot( csv_file="simulation_output.csv" )
-
 def metrics_csv_to_json():
     import csv
     import json
@@ -259,31 +252,62 @@ def update_settings( data ):
 @app.route('/submit', methods=['GET', 'POST'])
 def submit():
     if request.method == 'POST':
-        # Process the submitted parameters
-        #data = request.form
-        data = request.json
-        print( data )
-        # Run your application logic here
+        try:
+            data = request.json
+            if not data:
+                raise ValueError("No JSON data provided")
 
-        base_infectivity = float(data['base_infectivity'])
-        migration_fraction = float(data['migration_fraction'])
-        seasonal_multiplier = float(data['seasonal_multiplier'])
-        new_kvps = {
-            "base_infectivity": base_infectivity,
-            "migration_fraction": migration_fraction,
-            "seasonal_multiplier": seasonal_multiplier
-        }
-        update_settings_file( new_kvps )
-        #cbr = int(data['cbr'])
-        #return 'Data received: {}'.format(data)
-        run_sim( base_infectivity, migration_fraction, seasonal_multiplier )
-        print( "Sim completed. Returning output plot URL." )
-        #return f'Sim ran'
-        #return {'url': '/prevs.png'}
-        return metrics_csv_to_json() 
+            # Extract and validate parameters
+            base_infectivity = float(data.get('base_infectivity'))
+            migration_fraction = float(data.get('migration_fraction'))
+            seasonal_multiplier = float(data.get('seasonal_multiplier'))
+            duration_years = int(data.get('duration'))
+
+            # Translate duration from years to days
+            duration_days = duration_years * 365
+
+            # Prepare new key-value pairs
+            new_kvps = {
+                "base_infectivity": base_infectivity,
+                "migration_fraction": migration_fraction,
+                "seasonal_multiplier": seasonal_multiplier,
+                "duration": duration_days
+            }
+            update_settings_file(new_kvps)
+            run_sim(base_infectivity, migration_fraction, seasonal_multiplier)
+
+            return metrics_csv_to_json()
+
+        except (ValueError, TypeError) as e:
+            return jsonify({"status": "error", "message": str(e)}), 400
+        except Exception as e:
+            return jsonify({"status": "error", "message": "An unexpected error occurred: " + str(e)}), 500
     else:
         # Return the API documentation
-        return API_DOC
+        api_doc = {
+            "description": "API for submitting simulation parameters",
+            "endpoints": {
+                "/submit": {
+                    "method": "POST",
+                    "parameters": {
+                        "base_infectivity": "float, required",
+                        "migration_fraction": "float, required",
+                        "seasonal_multiplier": "float, required",
+                        "duration": "integer (years), required"
+                    },
+                    "response": {
+                        "status": "string",
+                        "message": "string",
+                        "url": "string (only if status is success)"
+                    },
+                    "errors": [
+                        {"status": "error", "message": "No JSON data provided"},
+                        {"status": "error", "message": "An unexpected error occurred: <error_message>"}
+                    ]
+                }
+            }
+        }
+    return jsonify(api_doc) 
 
 @app.route('/prevs.png')
 def download_prevs():
