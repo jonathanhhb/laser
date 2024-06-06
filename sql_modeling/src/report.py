@@ -1,9 +1,8 @@
 import csv
 import numpy as np
 import socket
-from sparklines import sparklines
 import time
-import pdb
+import os
 import settings
 import demographics_settings
 
@@ -45,13 +44,16 @@ def init():
 
 def write_timestep_report( csvwriter, timestep, infected_counts, susceptible_counts, recovered_counts, new_births, new_deaths ):
     wtr_start = time.time()
-    # This function is model agnostic
-    infecteds = np.array([infected_counts[key] for key in sorted(infected_counts.keys(), reverse=True)])
-    total = {key: susceptible_counts.get(key, 0) + infected_counts.get(key, 0) + recovered_counts.get(key, 0) for key in susceptible_counts.keys()}
-    totals = np.array([total[key] for key in sorted(total.keys(), reverse=True)])
-    prev = infecteds/totals
+    def sparklines():
+        from sparklines import sparklines
+        infecteds = np.array([infected_counts[key] for key in sorted(infected_counts.keys(), reverse=True)])
+        total = {key: susceptible_counts.get(key, 0) + infected_counts.get(key, 0) + recovered_counts.get(key, 0) for key in susceptible_counts.keys()}
+        totals = np.array([total[key] for key in sorted(total.keys(), reverse=True)])
+        prev = infecteds/totals
+        print( list( sparklines( prev ) ) )
     print( f"T={timestep}" )
-    print( list( sparklines( prev ) ) )
+    if not os.getenv( "HEADLESS" ):
+        sparklines()
     # Write the counts to the CSV file
     #print( f"T={timestep},\nS={susceptible_counts},\nI={infected_counts},\nR={recovered_counts}" )
     if write_report and timestep >= settings.report_start:
