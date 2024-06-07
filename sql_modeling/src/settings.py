@@ -6,7 +6,7 @@ report_filename="simulation_output.csv"
 #duration = 10*365
 duration = 20*365
 
-report_start= 365*4
+report_start= 365*3
 base_infectivity = 1.48 # 4.42
 cbr=17.5 # needed for default even if not used
 births_file="births.csv"

@@ -3,7 +3,7 @@ import subprocess
 
 app = Flask(__name__)
 
-params = [
+params_v0 = [
 {
 	'name': "pop",
 	'default': "int(1e7)+1",
@@ -70,6 +70,61 @@ params = [
         'description': "Timesteps between applying routine immunization of 9-month-olds."
 },
 ]
+
+params = [
+        {
+            "name": "base_infectivity",
+            "type": "float",
+            "required": True,
+            "min": 0.5,
+            "max": 10.0,
+            "default": 2.2,
+            "description": "The base infectivity rate of the virus. How much contagion is shed each day by each infectious person."
+        },
+        {
+            "name": "migration_fraction",
+            "type": "float",
+            "required": True,
+            "min": 0.0,
+            "max": 1.0,
+            "default": 0.05,
+            "description": "The fraction of the infectious population that migrates (permanently) each timestep."
+        },
+        {
+            "name": "seasonal_multiplier",
+            "type": "float",
+            "required": True,
+            "min": 0.0,
+            "max": 3.0,
+            "default": 0.7,
+            "description": "The multiplier to account for seasonal effects. There is a base seasonality curve to reflect the school year. Setting this to 0 eliminates seasonality. Making this too high increases the likelihood of elimination during the summer hols."
+        },
+        {
+            "name": "duration",
+            "type": "integer",
+            "required": True,
+            "min": 0,
+            "max": 20,
+            "default": 4,
+            "description": "Duration of the simulation in years."
+        }
+    ]
+
+def validate_params(data, schema):
+    for param in schema:
+        name = param['name']
+        value = data.get(name)
+        if value is None:
+            raise ValueError(f"Parameter '{name}' is required.")
+        if param['type'] == 'float':
+            value = float(value)
+        elif param['type'] == 'integer':
+            value = int(value)
+        else:
+            raise TypeError(f"Unsupported type for parameter '{name}': {param['type']}")
+
+        if not (param['min'] <= value <= param['max']):
+            raise ValueError(f"Parameter '{name}' must be between {param['min']} and {param['max']} (got {value}).")
 
 
 # Define the API documentation
@@ -257,6 +312,8 @@ def submit():
             if not data:
                 raise ValueError("No JSON data provided")
 
+            validate_params( data, params )
+
             # Extract and validate parameters
             base_infectivity = float(data.get('base_infectivity'))
             migration_fraction = float(data.get('migration_fraction'))
@@ -282,19 +339,14 @@ def submit():
             return jsonify({"status": "error", "message": str(e)}), 400
         except Exception as e:
             return jsonify({"status": "error", "message": "An unexpected error occurred: " + str(e)}), 500
-    else:
+    else: 
         # Return the API documentation
         api_doc = {
             "description": "API for submitting simulation parameters",
             "endpoints": {
                 "/submit": {
                     "method": "POST",
-                    "parameters": {
-                        "base_infectivity": "float, required",
-                        "migration_fraction": "float, required",
-                        "seasonal_multiplier": "float, required",
-                        "duration": "integer (years), required"
-                    },
+                    "parameters": params,
                     "response": {
                         "status": "string",
                         "message": "string",
@@ -307,6 +359,7 @@ def submit():
                 }
             }
         }
+
     return jsonify(api_doc) 
 
 @app.route('/prevs.png')
