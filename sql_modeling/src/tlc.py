@@ -118,5 +118,8 @@ if __name__ == "__main__":
     print( f"Execution time = {runtime}." )
 
     import post_proc
-    post_proc.analyze()
+    try:
+        post_proc.analyze()
+    except Exception as ex:
+        print( "There are parameters which might result in post proc not working. Continue and return null values." )
 

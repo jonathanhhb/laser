@@ -8,8 +8,11 @@ import optuna
 import requests
 import pdb
 
-url = 'http://10.24.14.21:5000/submit'
+#url = 'http://10.24.14.27:5000/submit'
+#url = 'http://10.24.14.21:5000/submit'
 #url = 'http://172.19.0.2:5000/submit'
+url = 'http://10.24.49.70:5001/submit'
+
 
 # Load reference/target values from metrics_ref.csv
 reference_values = pd.read_csv('metrics_ref.csv', index_col='metric').to_dict()['value']
@@ -18,7 +21,7 @@ reference_values = pd.read_csv('metrics_ref.csv', index_col='metric').to_dict()[
 def objective(trial):
     # Define the ranges for the parameters A, B, and C
     base_infectivity = trial.suggest_float('base_infectivity', 0.1, 5.0)
-    migration_fraction = 0 # trial.suggest_float('migration_fraction', 0.005, 0.10)
+    migration_fraction = trial.suggest_float('migration_fraction', 0.005, 0.10)
     seasonal_multiplier = trial.suggest_float('seasonal_multiplier', 0.5, 2.5)
 
     # Simulate the disease model with the chosen parameters and obtain the metrics
@@ -95,7 +98,7 @@ if __name__ == "__main__":
     # Create a study object and optimize the objective function
     study = optuna.create_study(
             direction='minimize',
-            study_name="no-name-72844ae3-8812-4fd1-8ae6-73de3cd35485",
+            #study_name="no-name-695246b7-19e6-4833-bcb3-33d78af42d2d",
             storage='sqlite:///laser_ew.db',
             load_if_exists=True
         )

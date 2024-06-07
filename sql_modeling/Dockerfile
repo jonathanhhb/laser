@@ -36,5 +36,6 @@ COPY service/fits.npy .
 COPY src/cbrs.csv .
 COPY src/births.csv .
 
+ENV HEADLESS true
 CMD ["python", "app.py"]
 

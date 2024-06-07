@@ -189,9 +189,19 @@ def analyze():
     # Calculate the average number of new infections in London per year
     average_new_infections_per_year_london = total_new_infections_london / num_years
 
-    ccs_bigcity_mean, ccs_median, sig_slope = analyze_ccs()
+    try:
+        ccs_bigcity_mean, ccs_median, sig_slope = analyze_ccs()
+    except Exception as ex:
+        print( "analyze_ccs failed for some reason." )
+        ccs_bigcity_mean = 1
+        ccs_median = 0
+        sig_slope = -1000
 
     # Create a DataFrame with the metric and its value
+    try:
+        wpp = get_wavelet_power_peak()
+    except Exception as ex:
+        wpp = 0
     data = {
         "metric": [
             "mean_new_infs_per_year",
@@ -207,7 +217,7 @@ def analyze():
             ccs_bigcity_mean,
             ccs_median,
             sig_slope,
-            get_wavelet_power_peak()
+            wpp
         ]
     }
     report_df = pd.DataFrame(data)
