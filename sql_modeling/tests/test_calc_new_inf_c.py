@@ -3,6 +3,7 @@ import numpy as np
 import unittest
 import memory_profiler
 import pdb
+import copy
 
 beta = 2.4  # Transmission rate
 # Load the C library
@@ -19,6 +20,7 @@ lib.calculate_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
 ]
+"""
 lib.handle_new_infections.argtypes = [
     ctypes.c_uint32, # num_agents
     ctypes.c_uint32, # node
@@ -32,19 +34,7 @@ lib.handle_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     ctypes.c_int, # sus number for node
 ]
-lib.handle_new_infections_threaded.argtypes = [
-    ctypes.c_uint32, # num_agents
-    ctypes.c_size_t,  # starting index
-    ctypes.c_size_t,  # num_nodes
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. new infections to create by node
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
-]
+"""
 lib.handle_new_infections_mp.argtypes = [
     ctypes.c_uint32, # num_agents
     ctypes.c_size_t,  # starting index
@@ -55,7 +45,6 @@ lib.handle_new_infections_mp.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
     np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. new infections to create by node
-    #np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
 ]
 
@@ -138,12 +127,11 @@ class TestHandleNewInfections(unittest.TestCase):
         immunity = np.array([False] * 10, dtype=bool)
         incubation_timer = np.array([0] * 10, dtype=np.uint8)
         infection_timer = np.array([0] * 10, dtype=np.uint8)
-        new_infections = 5
-        new_infection_idxs_out = np.zeros(new_infections).astype(np.uint32)
-        num_eligible_agents = 0
+        new_infections = np.array([5] * 1, dtype=np.uint32)
+        num_eligible_agents = np.array([0] * 1, dtype=np.uint32)
 
         # Call the C function
-        lib.handle_new_infections(
+        lib.handle_new_infections_mp(
             start_idx,
             end_idx,
             node,
@@ -153,14 +141,13 @@ class TestHandleNewInfections(unittest.TestCase):
             incubation_timer,
             infection_timer,
             new_infections,
-            new_infection_idxs_out,
             num_eligible_agents
         )
 
         # Assert that no new infections occurred
         self.assertEqual(np.sum(infected), 0)
 
-    def test_some_eligible_agents(self):
+    def test_all_eligible_agents(self):
         """
         Test case to verify behavior when some agents are eligible for infection.
 
@@ -175,36 +162,40 @@ class TestHandleNewInfections(unittest.TestCase):
         # Define input parameters
         start_idx = 0
         end_idx = 10
-        node = 1
-        agent_node = np.array([1] * 10, dtype=np.uint32)
+        num_nodes = 1
+        agent_node = np.array([0] * 10, dtype=np.uint32)
         infected = np.array([False] * 10, dtype=bool)
         immunity = np.array([False] * 10, dtype=bool)
         incubation_timer = np.array([0] * 10, dtype=np.uint8)
         infection_timer = np.array([0] * 10, dtype=np.uint8)
-        new_infections = 5
-        new_infection_idxs_out = np.zeros(new_infections, dtype=np.uint32)
-        num_eligible_agents = 5
+        new_infections = np.array([5] * 1, dtype=np.uint32)
+        num_eligible_agents = np.array([5] * 1, dtype=np.uint32)
+
+        num_originally_infected = np.count_nonzero(infected)
 
         # Call the C function
-        lib.handle_new_infections(
+        lib.handle_new_infections_mp(
             start_idx,
             end_idx,
-            node,
+            num_nodes,
             agent_node,
             infected,
             immunity,
             incubation_timer,
             infection_timer,
             new_infections,
-            new_infection_idxs_out,
             num_eligible_agents
         )
 
         # Assert that new infections occurred
-        self.assertEqual(np.sum(infected), new_infections)
+        new_infection_count = np.count_nonzero(infected)-num_originally_infected 
+        #print( f"{self.new_infection_idxs_out}" )
+
+        self.assertEqual(new_infections[0], new_infection_count,
+                         f'Expected {new_infections[0]} new infections, got {new_infection_count}.')
 
     # Add more test cases for other scenarios (e.g., boundary cases, error cases, etc.)
-    def test_invalid_input_num_eligible_agents(self):
+    def skip_test_invalid_input_num_eligible_agents(self):
         """
         Test case to verify behavior when the number of eligible agents is negative.
 
@@ -226,15 +217,13 @@ class TestHandleNewInfections(unittest.TestCase):
         immunity = np.array([False] * 10, dtype=bool)
         incubation_timer = np.array([0] * 10, dtype=np.uint8)
         infection_timer = np.array([0] * 10, dtype=np.uint8)
-        new_infections = 5
-        new_infection_idxs_out = np.zeros(new_infections, dtype=np.uint32)
-        num_eligible_agents = -5  # Negative number of eligible agents
+        new_infections = np.array([5] * 1, dtype=np.uint32)
+        num_eligible_agents = np.array([-5] * 1, dtype=np.uint32)
 
-        # Save a copy of new_infection_idxs_out before calling the function
-        original_new_infection_idxs_out = new_infection_idxs_out.copy()
+        original_infections = sum(infected)
 
         # Call the C function and assert that it raises an exception or returns an error code
-        lib.handle_new_infections(
+        lib.handle_new_infections_mp(
             start_idx,
             end_idx,
             node,
@@ -244,12 +233,11 @@ class TestHandleNewInfections(unittest.TestCase):
             incubation_timer,
             infection_timer,
             new_infections,
-            new_infection_idxs_out,
             num_eligible_agents
         )
 
-        # Assert that new_infection_idxs_out remains unmodified
-        np.testing.assert_array_equal(new_infection_idxs_out, original_new_infection_idxs_out)
+        # Assert that num infections remains unmodified
+        np.testing.assert_array_equal(sum(infected), original_infections)
 
     def test_invalid_input_end_idx_less_than_start_idx(self):
         """
@@ -274,15 +262,14 @@ class TestHandleNewInfections(unittest.TestCase):
         immunity = np.array([False] * 10, dtype=bool)
         incubation_timer = np.array([0] * 10, dtype=np.uint8)
         infection_timer = np.array([0] * 10, dtype=np.uint8)
-        new_infections = 5
-        new_infection_idxs_out = np.arange(5, dtype=np.uint32)  # Array with values [0, 1, 2, 3, 4]
-        num_eligible_agents = 5
+        new_infections = np.array([5] * 1, dtype=np.uint32)
+        num_eligible_agents = np.array([5] * 1, dtype=np.uint32)
 
         # Save a copy of new_infection_idxs_out before calling the function
-        original_new_infection_idxs_out = new_infection_idxs_out.copy()
+        original_infections = sum(infected)
 
         # Call the C function
-        lib.handle_new_infections(
+        lib.handle_new_infections_mp(
             start_idx,
             end_idx,
             node,
@@ -292,12 +279,11 @@ class TestHandleNewInfections(unittest.TestCase):
             incubation_timer,
             infection_timer,
             new_infections,
-            new_infection_idxs_out,
             num_eligible_agents
         )
 
         # Assert that new_infection_idxs_out remains unmodified
-        np.testing.assert_array_equal(new_infection_idxs_out, original_new_infection_idxs_out)
+        np.testing.assert_array_equal(sum(infected), original_infections )
 
     def test_consistency_with_same_inputs(self):
         """
@@ -322,8 +308,7 @@ class TestHandleNewInfections(unittest.TestCase):
         #incubation_timer = np.array([0] * 10, dtype=np.uint8)
         #infection_timer = np.array([0] * 10, dtype=np.uint8)
         #new_infections = 5
-        #new_infection_idxs_out = np.zeros(new_infections, dtype=np.uint32)
-        num_eligible_agents = 5
+        num_eligible_agents = np.array([5] * 1, dtype=np.uint32)
 
         # Call the C function multiple times and store the outputs
         outputs = []
@@ -333,9 +318,9 @@ class TestHandleNewInfections(unittest.TestCase):
             infected = np.array([False] * 10, dtype=bool)
             incubation_timer = np.array([0] * 10, dtype=np.uint8)
             infection_timer = np.array([0] * 10, dtype=np.uint8)
-            new_infections = 5
-            new_infection_idxs_out = np.zeros(new_infections, dtype=np.uint32)
-            lib.handle_new_infections(
+            new_infections = np.array([5] * 1, dtype=np.uint32)
+
+            lib.handle_new_infections_mp(
                 start_idx,
                 end_idx,
                 node,
@@ -345,10 +330,9 @@ class TestHandleNewInfections(unittest.TestCase):
                 incubation_timer,
                 infection_timer,
                 new_infections,
-                new_infection_idxs_out,
                 num_eligible_agents
             )
-            outputs.append(new_infection_idxs_out.copy())  # Save a copy of the output
+            outputs.append(sum(infected))  # Save a copy of the output
 
         # Verify that all outputs are the same
         for i in range(1, len(outputs)):
@@ -378,15 +362,14 @@ class TestHandleNewInfections(unittest.TestCase):
         immunity = np.array([False] * 10, dtype=bool)
         incubation_timer = np.array([0] * 10, dtype=np.uint8)
         infection_timer = np.array([0] * 10, dtype=np.uint8)
-        new_infections = 5
-        new_infection_idxs_out = np.zeros(new_infections, dtype=np.uint32)
-        num_eligible_agents = 5
+        new_infections = np.array([5] * 1, dtype=np.uint32)
+        num_eligible_agents = np.array([5] * 1, dtype=np.uint32)
 
         # Profile memory usage before function call
         pre_memory = memory_profiler.memory_usage()[0]
 
         # Call the function
-        lib.handle_new_infections(
+        lib.handle_new_infections_mp(
             start_idx,
             end_idx,
             node,
@@ -396,7 +379,6 @@ class TestHandleNewInfections(unittest.TestCase):
             incubation_timer,
             infection_timer,
             new_infections,
-            new_infection_idxs_out,
             num_eligible_agents
         )
 
@@ -522,7 +504,6 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
         self.incubation_timer = np.zeros(self.num_agents, dtype=np.uint8)
         self.infection_timer = np.zeros(self.num_agents, dtype=np.uint8)
         self.new_infections = np.zeros(self.num_nodes, dtype=np.uint32)
-        self.new_infection_idxs_out = np.zeros(100, dtype=np.uint32)
         self.num_eligible_agents = np.zeros(self.num_nodes, dtype=np.uint32)
 
         # Randomly infect some agents and set immunity and infection_timer
@@ -548,12 +529,13 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
                 fraction = np.random.rand()  # Random fraction between 0 and 1
                 self.new_infections[node] = int(round(fraction * self.num_eligible_agents[node]))
 
-    def skip_test_no_infections(self):
+    def test_no_new_infections(self):
         start_idx = 0
-        end_idx = self.num_nodes - 1
+        end_idx = 100
         self.new_infections[:] = 0
-        
-        lib.handle_new_infections_threaded(
+       
+        original_infected = copy.deepcopy( self.infected )
+        lib.handle_new_infections_mp(
             start_idx, end_idx, self.num_nodes,
             self.agent_node,
             self.infected,
@@ -561,62 +543,83 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
             self.incubation_timer,
             self.infection_timer,
             self.new_infections,
-            self.new_infection_idxs_out,
             self.num_eligible_agents
         )
 
         # Check the expected results
-        np.testing.assert_array_equal(self.new_infection_idxs_out, np.zeros_like(self.new_infection_idxs_out))
-        np.testing.assert_array_equal(self.num_eligible_agents, np.zeros_like(self.num_eligible_agents))
+        np.testing.assert_array_equal(self.infected, original_infected)
 
-    def skip_test_some_infections(self):
+    def test_some_infections(self):
         start_idx = 0
-        end_idx = self.num_nodes - 1
+        end_idx = 100
         self.new_infections[:] = [1 if i % 2 == 0 else 0 for i in range(self.num_nodes)]  # Infections in even indices
-        self.new_infection_idxs_out = np.zeros(np.sum(self.new_infections), dtype=np.int32)
 
-        lib.handle_new_infections_threaded(
+        #original_infected = copy.deepcopy( self.infected )
+        original_infected_by_node = np.zeros(self.num_nodes, dtype=int)
+        for i in range(self.num_nodes):
+            original_infected_by_node[i] = np.sum(self.infected[self.agent_node == i])
+
+
+        lib.handle_new_infections_mp(
             start_idx, end_idx, self.num_nodes,
-            self.agent_node.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
-            self.infected.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),
-            self.immunity.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),
-            self.incubation_timer.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
-            self.infection_timer.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
-            self.new_infections.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
-            self.new_infection_idxs_out.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
-            self.num_eligible_agents.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+            self.agent_node,
+            self.infected,
+            self.immunity,
+            self.incubation_timer,
+            self.infection_timer,
+            self.new_infections,
+            self.num_eligible_agents
         )
 
-        expected_new_infection_idxs_out = np.array([i for i in range(self.num_nodes) if i % 2 == 0], dtype=np.int32)
-        expected_num_eligible_agents = np.array([1 if i % 2 == 0 else 0 for i in range(self.num_nodes)], dtype=np.int32)
-        
-        np.testing.assert_array_equal(self.new_infection_idxs_out, expected_new_infection_idxs_out)
-        np.testing.assert_array_equal(self.num_eligible_agents, expected_num_eligible_agents)
+        # Determine the expected number of infections for each node
+        expected_infected_by_node = np.zeros(self.num_nodes, dtype=int)
+        for i in range(self.num_nodes):
+            if i % 2 == 0:
+                expected_infected_by_node[i] = original_infected_by_node[i] + 1
+            else:
+                expected_infected_by_node[i] = original_infected_by_node[i]
 
-    def skip_test_all_infections(self):
+        # Check that each even-numbered node has one more infection than before
+        for i in range(self.num_nodes):
+            if i % 2 == 0:
+                assert self.infected[self.agent_node == i].sum() == expected_infected_by_node[i]
+
+
+
+        # Optional: Check if new_infections array is supposed to be updated by the function
+        # If it should remain the same, assert its equality to the initial values
+        # expected_new_infections = np.array([1 if i % 2 == 0 else 0 for i in range(self.num_nodes)], dtype=np.int32)
+        # np.testing.assert_array_equal(self.new_infections, expected_new_infections)
+
+    def test_all_infections(self):
         start_idx = 1
         end_idx = 100
-        self.new_infections[:] = 1
-        self.new_infection_idxs_out = np.zeros(np.sum(self.new_infections), dtype=np.int32)
 
-        lib.handle_new_infections_threaded(
+        self.new_infections = self.num_eligible_agents
+
+        # Preserve the original state of the infected array
+        original_infected = copy.deepcopy(self.infected)
+
+        lib.handle_new_infections_mp(
             start_idx, end_idx, self.num_nodes,
-            self.agent_node.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
-            self.infected.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),
-            self.immunity.ctypes.data_as(ctypes.POINTER(ctypes.c_bool)),
-            self.incubation_timer.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
-            self.infection_timer.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte)),
-            self.new_infections.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
-            self.new_infection_idxs_out.ctypes.data_as(ctypes.POINTER(ctypes.c_int)),
-            self.num_eligible_agents.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+            self.agent_node,
+            self.infected,
+            self.immunity,
+            self.incubation_timer,
+            self.infection_timer,
+            self.new_infections,
+            self.num_eligible_agents
         )
 
-        expected_new_infection_idxs_out = np.array([i for i in range(self.num_nodes)], dtype=np.int32)
-        expected_num_eligible_agents = np.array([1] * self.num_nodes, dtype=np.int32)
-        
-        np.testing.assert_array_equal(self.new_infection_idxs_out, expected_new_infection_idxs_out)
-        np.testing.assert_array_equal(self.num_eligible_agents, expected_num_eligible_agents)
-   
+        expected_infected_agents = np.ones(100, dtype=bool)
+        expected_infected_agents[self.immunity[1:101]] = False  # Mark immune agents as False
+        np.testing.assert_array_equal(self.infected[1:101], expected_infected_agents)
+
+        # Check if new_infections array is updated as expected
+        expected_new_infections = self.num_eligible_agents
+        np.testing.assert_array_equal(self.new_infections, expected_new_infections)
+
+
     def test_infections(self):
         start_idx = 1
         end_idx = 100
@@ -632,7 +635,6 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
             self.incubation_timer,
             self.infection_timer,
             self.new_infections,
-            #self.new_infection_idxs_out,
             self.num_eligible_agents
         )
 

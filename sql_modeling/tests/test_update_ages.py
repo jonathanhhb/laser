@@ -3,6 +3,7 @@ from ctypes import CDLL, c_uint, c_float, byref
 import ctypes
 import numpy as np
 import os
+import time
 
 # Load the shared object (.so) library
 # Get the path to the .so file in the parent directory
@@ -13,6 +14,11 @@ lib = CDLL("./update_ages.so")
 
 # Define the function signature
 lib.update_ages.argtypes = [
+    ctypes.c_size_t,  # start_idx
+    ctypes.c_size_t,  # stop_idx
+    np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS')
+]
+lib.update_ages_simd.argtypes = [
     ctypes.c_size_t,  # start_idx
     ctypes.c_size_t,  # stop_idx
     np.ctypeslib.ndpointer(dtype=np.float32, flags='C_CONTIGUOUS')
@@ -48,6 +54,23 @@ class TestUpdateAges(unittest.TestCase):
         lib.update_ages(0, 9, ages)
         for i in range(len(ages)):
             self.assertAlmostEqual(ages[i], expected_result[i], places=5)
+
+    def test_stress(self):
+        n = int(1e7)
+        ages = np.random.rand(n).astype(np.float32) * 100  # Random ages between 0 and 100
+
+        # Measure the time taken to call update_ages 100 times
+        start_time = time.time()
+        for _ in range(100):
+            lib.update_ages(0, n - 1, ages)
+            #lib.update_ages_simd(0, n - 1, ages)
+        end_time = time.time()
+
+        # Calculate the mean time per call
+        total_time = end_time - start_time
+        mean_time_per_call = total_time / 100
+        print(f"Mean time per call: {mean_time_per_call:.6f} seconds")
+
 
 if __name__ == "__main__":
     unittest.main()

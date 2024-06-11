@@ -1,6 +1,8 @@
 import unittest
 import numpy as np
 import ctypes
+import time
+import pdb
 
 class TestProgressImmunities(unittest.TestCase):
     def setUp(self):
@@ -12,6 +14,14 @@ class TestProgressImmunities(unittest.TestCase):
             np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
             np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
         ]
+        """
+        self.lib.progress_immunities_avx2.argtypes = [
+            ctypes.c_int,  # start_idx
+            ctypes.c_int,  # end_idx
+            np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
+            np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
+        ]
+        """
     def test_no_progress(self):
         """
         Test that no progress occurs when all immunity timers are zero.
@@ -72,6 +82,69 @@ class TestProgressImmunities(unittest.TestCase):
         #print( f"ref: {expected_immunity}" )
         #print( f"test: {immunity}" )
         self.assertTrue((immunity.tolist() == expected_immunity.tolist()), "Immunity state (true/false) after progression different from expected.")
+
+    def test_large_progress_multiple_of_32(self):
+        """
+        Test that progress occurs correctly for large arrays where the size is a multiple of 32.
+        """
+        # Define input parameters
+        start_idx = 0
+        end_idx = 63
+        immunity_timer = np.random.randint(0, 10, size=64).astype(np.int8)
+        immunity = np.random.choice([True, False], size=64).astype(bool)
+
+        # Create expected results
+        expected_immunity_timer = immunity_timer.copy()
+        expected_immunity = immunity.copy()
+
+        # Manually compute expected results
+        for i in range(start_idx, end_idx + 1):
+            if expected_immunity[i] and expected_immunity_timer[i] > 0:
+                expected_immunity_timer[i] -= 1
+                if expected_immunity_timer[i] == 0:
+                    expected_immunity[i] = False
+
+        # Call the C function
+        self.lib.progress_immunities(start_idx, end_idx, immunity_timer, immunity)
+        #self.lib.progress_immunities(start_idx, end_idx, immunity_timer, immunity)
+
+        # Assert that progress occurred
+        #print( f"Actual (timers): {immunity_timer}" )
+        #print( f"Expected (timers): {expected_immunity_timer}" )
+        self.assertTrue(np.all(immunity_timer == expected_immunity_timer), "Immunity timers after progression different from expected.")
+
+        #print( f"Actual (bools): {immunity}" )
+        #print( f"Expected (bools): {expected_immunity}" )
+        for i in range(len(immunity)):
+            if immunity[i] != expected_immunity[i]:
+                print(f"Mismatch at index {i}: Actual = {immunity[i]}, Expected = {expected_immunity[i]}")
+
+        self.assertTrue((immunity.tolist() == expected_immunity.tolist()), "Immunity state (true/false) after progression different from expected.")
+
+
+    def test_progress_immunities_stress(self):
+        """
+        Stress test the progress_immunities function with large arrays.
+        """
+        # Define input parameters
+        start_idx = 0
+        end_idx = int(1e7) - 1
+        immunity_timer = np.random.randint(0, 10, size=int(1e7), dtype=np.int8)
+        immunity = np.random.choice([True, False], size=int(1e7))
+
+        # Measure the execution time over 100 iterations
+        num_iterations = 100
+        total_time = 0
+
+        for _ in range(num_iterations):
+            start_time = time.time()
+            self.lib.progress_immunities(start_idx, end_idx, immunity_timer, immunity)
+            end_time = time.time()
+            total_time += (end_time - start_time)
+
+        average_time = total_time / num_iterations
+        print(f"Average execution time over {num_iterations} iterations: {average_time:.6f} seconds")
+
 
 if __name__ == "__main__":
     unittest.main()
