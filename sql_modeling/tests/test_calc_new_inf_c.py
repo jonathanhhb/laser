@@ -496,7 +496,7 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
     def setUp(self):
         # Setup common data for tests
         self.num_nodes = 10
-        self.num_agents = 102
+        self.num_agents = int(1e4+2)
 
         self.agent_node = np.array([i % self.num_nodes for i in range(self.num_agents)], dtype=np.uint32)
         self.infected = np.zeros(self.num_agents, dtype=np.bool_)
@@ -520,7 +520,7 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
 
         # Calculate num_eligible_agents
         for node in range(self.num_nodes):
-            agents_in_node = [i for i in range(1,101) if self.agent_node[i] == node]
+            agents_in_node = [i for i in range(1,self.num_agents-1) if self.agent_node[i] == node]
             self.num_eligible_agents[node] = len(agents_in_node) - np.sum(self.immunity[agents_in_node]) - np.sum(self.infected[agents_in_node])
 
         # Set new_infections to a fraction of num_eligible_agents for each node
@@ -530,8 +530,8 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
                 self.new_infections[node] = int(round(fraction * self.num_eligible_agents[node]))
 
     def test_no_new_infections(self):
-        start_idx = 0
-        end_idx = 100
+        start_idx = 1
+        end_idx = self.num_agents-2
         self.new_infections[:] = 0
        
         original_infected = copy.deepcopy( self.infected )
@@ -551,10 +551,9 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
 
     def test_some_infections(self):
         start_idx = 0
-        end_idx = 100
+        end_idx = self.num_agents-2
         self.new_infections[:] = [1 if i % 2 == 0 else 0 for i in range(self.num_nodes)]  # Infections in even indices
 
-        #original_infected = copy.deepcopy( self.infected )
         original_infected_by_node = np.zeros(self.num_nodes, dtype=int)
         for i in range(self.num_nodes):
             original_infected_by_node[i] = np.sum(self.infected[self.agent_node == i])
@@ -585,15 +584,9 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
                 assert self.infected[self.agent_node == i].sum() == expected_infected_by_node[i]
 
 
-
-        # Optional: Check if new_infections array is supposed to be updated by the function
-        # If it should remain the same, assert its equality to the initial values
-        # expected_new_infections = np.array([1 if i % 2 == 0 else 0 for i in range(self.num_nodes)], dtype=np.int32)
-        # np.testing.assert_array_equal(self.new_infections, expected_new_infections)
-
     def test_all_infections(self):
         start_idx = 1
-        end_idx = 100
+        end_idx = self.num_agents-2
 
         self.new_infections = self.num_eligible_agents
 
@@ -621,12 +614,14 @@ class TestHandleNewInfectionsThreaded(unittest.TestCase):
 
 
     def test_infections(self):
+        """
+        I'm not sure this test is really doing anything.
+        """
         start_idx = 1
-        end_idx = 100
+        end_idx = self.num_agents-2
         #self.new_infection_idxs_out = np.zeros(self.num_agents, dtype=np.uint32)
 
         num_originally_infected = np.count_nonzero(self.infected)
-        #lib.handle_new_infections_threaded(
         lib.handle_new_infections_mp(
             start_idx, end_idx, self.num_nodes,
             self.agent_node,

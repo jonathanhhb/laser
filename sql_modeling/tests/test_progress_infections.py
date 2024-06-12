@@ -2,6 +2,8 @@ import ctypes
 import numpy as np
 import unittest
 import time
+import copy
+from numba import njit, prange, uint64
 
 # Load the shared library
 lib = ctypes.CDLL("./update_ages.so")
@@ -15,11 +17,28 @@ lib.progress_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # infected
     np.ctypeslib.ndpointer(dtype=np.int8, flags='C_CONTIGUOUS'),  # immunity_timer
     np.ctypeslib.ndpointer(dtype=bool, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # recovered_idxs
 ]
 lib.progress_infections.restype = ctypes.c_size_t
 
+@njit(parallel=True)
+def progress_infections(start_idx: uint64, end_idx: uint64, incubation_timer, infection_timer, infected, immunity, immunity_timer):
+    """
+    WARNING: THIS DOESN"T WORK RIGHT.
+    """
+    for i in prange(start_idx, end_idx + 1):
+        if incubation_timer[i] >= 1:
+            incubation_timer[i] -= 1
+
+        if infection_timer[i] >= 1:
+            infection_timer[i] -= 1
+
+            if infection_timer[i] == 0:
+                infected[i] = 0
+                immunity_timer[i] = -1
+                immunity[i] = True
+
 class TestProgressInfections(unittest.TestCase):
+
     def test_no_infections(self):
         """
         Test case to verify the behavior of the progress_infections function when no individuals are infected.
@@ -46,14 +65,22 @@ class TestProgressInfections(unittest.TestCase):
         infected = np.zeros(10, dtype=bool)
         immunity_timer = np.zeros(10, dtype=np.int8)
         immunity = np.zeros(10, dtype=bool)
-        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Call the C function
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
 
         # Assert that no recoveries occurred
-        self.assertEqual(result, 0)
-        self.assertTrue(np.all(recovered_idxs == 0))
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
 
     def test_some_recoveries(self):
         """
@@ -82,18 +109,31 @@ class TestProgressInfections(unittest.TestCase):
         infected = np.array([False, False, True, False, False, True, False, True, False, True, False, True], dtype=bool)
         immunity_timer = np.zeros(12, dtype=np.int8)
         immunity = np.zeros(12, dtype=bool)
-        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Call the C function
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
+        for i in range(start_idx, end_idx):
+            if incubation_timer[i] == 1:
+                assert infection_timer[i] == 0, f"Failed at index {i}: infection_timer[{i}] should be 0, found {infection_timer[i]}"
+                assert not infected[i], f"Failed at index {i}: infected[{i}] should be False, found {infected[i]}"
+                assert immunity_timer[i] == -1, f"Failed at index {i}: immunity_timer[{i}] should be -1, found {immunity_timer[i]}"
+                assert immunity[i], f"Failed at index {i}: immunity[{i}] should be True, found {immunity[i]}"
+        """
+        progress_infections(start_idx, end_idx, infection_timer_orig, incubation_timer_orig, infected_orig, immunity_timer_orig, immunity_orig)
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
+        """
 
-        # Assert that some recoveries occurred
-        self.assertEqual(result, 1)
-        self.assertTrue(np.all(recovered_idxs[:1] != 0))
-        expected_ids = set( { 2 } )
-        recovered_ids = set(recovered_idxs[:result])
-        self.assertSetEqual(expected_ids, recovered_ids)
-
+        
     def test_some_recoveries2(self):
         """
         Test case to verify the behavior of the progress_infections function when some individuals recover.
@@ -121,17 +161,31 @@ class TestProgressInfections(unittest.TestCase):
         infected = np.array([False, False, True, False, True, True, False, True, False, True, True, True], dtype=bool)
         immunity_timer = np.zeros(12, dtype=np.int8)
         immunity = np.zeros(12, dtype=bool)
-        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Call the C function
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
+        for i in range(start_idx, end_idx):
+            if incubation_timer[i] == 1:
+                assert infection_timer[i] == 0, f"Failed at index {i}: infection_timer[{i}] should be 0, found {infection_timer[i]}"
+                assert not infected[i], f"Failed at index {i}: infected[{i}] should be False, found {infected[i]}"
+                assert immunity_timer[i] == -1, f"Failed at index {i}: immunity_timer[{i}] should be -1, found {immunity_timer[i]}"
+                assert immunity[i], f"Failed at index {i}: immunity[{i}] should be True, found {immunity[i]}"
 
-        # Assert that some recoveries occurred
-        self.assertEqual(result, 3)
-        self.assertTrue(np.all(recovered_idxs[:1] != 0))
-        expected_ids = set( { 2,4,7 } )
-        recovered_ids = set(recovered_idxs[:result])
-        self.assertSetEqual(expected_ids, recovered_ids)
+        """
+        progress_infections(start_idx, end_idx, infection_timer_orig, incubation_timer_orig, infected_orig, immunity_timer_orig, immunity_orig)
+
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
+        """
 
     def test_all_recoveries(self):
         """
@@ -158,18 +212,29 @@ class TestProgressInfections(unittest.TestCase):
         infected = np.array([False, True, True, True, True, True, True, True, True, True, True, True], dtype=bool)
         immunity_timer = np.zeros(12, dtype=np.int8)
         immunity = np.zeros(12, dtype=bool)
-        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Call the C function
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
+        #progress_infections(start_idx, end_idx, infection_timer_orig, incubation_timer_orig, infected_orig, immunity_timer_orig, immunity_orig)
 
-        # Assert that all individuals recover
-        self.assertEqual(result, 10)
-        self.assertTrue(np.all(recovered_idxs[:10] > 0))
-        self.assertTrue(np.all(recovered_idxs[:10] < 11))
-        expected_ids = set(range(1, 11))
-        recovered_ids = set(recovered_idxs[:10])
-        self.assertSetEqual(expected_ids, recovered_ids)
+        self.assertListEqual(infection_timer[start_idx:end_idx+1].tolist(), np.full(10, 0, dtype=np.uint8).tolist())
+        self.assertListEqual(infected[start_idx:end_idx+1].tolist(), np.full(end_idx - start_idx + 1, False, dtype=bool).tolist())
+        self.assertListEqual(immunity_timer[start_idx:end_idx+1].tolist(), np.full(end_idx - start_idx + 1, -1, dtype=np.int8).tolist())
+        self.assertListEqual(immunity[start_idx:end_idx+1].tolist(), np.full(end_idx - start_idx + 1, True, dtype=bool).tolist())
+
+        """
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
+        """
 
 
     def test_no_recoveries(self):
@@ -200,14 +265,22 @@ class TestProgressInfections(unittest.TestCase):
         infected = np.array([True, True, True, True, True, True, True, True, True, True], dtype=bool)
         immunity_timer = np.zeros(12, dtype=np.int8)
         immunity = np.zeros(12, dtype=bool)
-        recovered_idxs = np.zeros(10, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Call the C function
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
+        progress_infections(start_idx, end_idx, infection_timer_orig, incubation_timer_orig, infected_orig, immunity_timer_orig, immunity_orig)
 
-        # Assert that no individuals recover
-        self.assertEqual(result, 0)
-        self.assertTrue(np.all(recovered_idxs[:10] == 0))
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
 
     # Add more tests here with different initial values...
     def test_performance_large_scale(self):
@@ -229,20 +302,37 @@ class TestProgressInfections(unittest.TestCase):
 
         immunity_timer = np.zeros(size, dtype=np.int8)
         immunity = np.zeros(size, dtype=bool)
-        recovered_idxs = np.zeros(size, dtype=np.uint32)
+
+        infection_timer_orig = copy.deepcopy( infection_timer )
+        incubation_timer_orig = copy.deepcopy( incubation_timer )
+        infected_orig = copy.deepcopy( infected )
+        immunity_timer_orig = copy.deepcopy( immunity_timer )
+        immunity_orig = copy.deepcopy( immunity )
 
         # Measure the execution time
         start_time = time.time()
-        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity, recovered_idxs)
+        result = lib.progress_infections(start_idx, end_idx, infection_timer, incubation_timer, infected, immunity_timer, immunity)
         end_time = time.time()
 
         # Print the execution time
         execution_time = end_time - start_time
-        print(f"Execution time for 10 million agents: {execution_time:.2f} seconds")
+        print(f"Test Execution time for 10 million agents: {execution_time:.2f} seconds")
 
-        # Optionally, perform some assertions
-        self.assertTrue(result >= 0)
-        self.assertTrue(np.all(recovered_idxs[:result] != 0))
+        """
+        start_time = time.time()
+        progress_infections(start_idx, end_idx, infection_timer_orig, incubation_timer_orig, infected_orig, immunity_timer_orig, immunity_orig)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Reference (numba) Execution time for 10 million agents: {execution_time:.2f} seconds")
+        """
+
+        """
+        self.assertEqual( infection_timer.tolist(), infection_timer_orig.tolist() )
+        self.assertEqual( infected.tolist(), infected_orig.tolist() )
+        self.assertEqual( incubation_timer.tolist(), incubation_timer_orig.tolist() )
+        self.assertEqual( immunity_timer.tolist(), immunity_timer_orig.tolist() )
+        self.assertEqual( immunity.tolist(), immunity_orig.tolist() )
+        """
 
 
 if __name__ == '__main__':
