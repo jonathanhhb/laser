@@ -109,21 +109,6 @@ update_ages_lib.calculate_new_infections.argtypes = [
     np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'),  # new_infections
     ctypes.c_float, # base_inf
 ]
-update_ages_lib.handle_new_infections.argtypes = [
-    ctypes.c_uint32, # num_agents
-    ctypes.c_uint32, # node
-    ctypes.c_size_t,  # starting index
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # nodes
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # infected
-    np.ctypeslib.ndpointer(dtype=np.bool_, flags='C_CONTIGUOUS'),  # immunity
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # incubation_timer
-    np.ctypeslib.ndpointer(dtype=np.uint8, flags='C_CONTIGUOUS'), # infection_timer
-    ctypes.c_int, # num_new_infections
-    #np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
-    np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # new infected ids
-    ctypes.c_int, # num_new_infections
-    #np.ctypeslib.ndpointer(dtype=np.uint32, flags='C_CONTIGUOUS'), # array of no. susceptibles by node
-]
 update_ages_lib.handle_new_infections_mp.argtypes = [
     ctypes.c_uint32, # num_agents
     ctypes.c_size_t,  # starting index
@@ -198,15 +183,11 @@ def load( pop_file ):
     """
     Load population from csv file as np arrays. Each property column is an np array.
     """
-    with gzip.open( pop_file ) as fp:
-        # Load the entire CSV file into a NumPy array
-        header_row = np.genfromtxt(fp, delimiter=',', dtype=str, max_rows=1)
-
-        # Load the remaining data as numerical values, skipping the header row
-        data = np.genfromtxt(fp, delimiter=',', dtype=float, skip_header=1)
-
-        # Extract headers from the header row
-        headers = header_row
+    print( "Loading modeled population file." )
+    with gzip.open(pop_file) as fp:
+        df = pd.read_csv(fp)
+        headers = df.columns.to_numpy()
+        data = np.array(df, copy=False)
 
     settings.pop = len(data) # -unborn_end_idx 
     print( f"Population={settings.pop}" )
