@@ -3,12 +3,13 @@ from scipy.stats import binom
 from scipy.optimize import curve_fit
 from scipy import signal
 import pandas as pd
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 burnin = 1000
-def get_wavelet_power_peak():
+def get_wavelet_power_peak( big_city_node ):
     # setup and execute wavelet transform
     def wavelet(M,s):
          return signal.morlet2(M, s, w=6)
@@ -61,8 +62,11 @@ def get_wavelet_power_peak():
     widths = np.logspace(np.log10(1), np.log10(MAX_PERIOD), int(MAX_PERIOD))
     y = widths / 52
 
-    cases = get_cases(507)
+    cases = get_cases() # change to 507 for london if doing multi-node E&W
     log_cases = pad_data(log_transform(cases))
+    if len(log_cases) == 0:
+        print( "No cases data!" )
+        return 0.0
     cwt = signal.cwt(log_cases, wavelet, widths)  # (M x N)
     # Number of time steps in padded time series
     nt = len(cases)
@@ -75,6 +79,9 @@ def get_wavelet_power_peak():
 
 def analyze_ccs():
     # Load the CSV file
+    if not os.path.exists( 'cities.csv' ):
+        print( "No cities.csv file present; not doing CCS analysis." )
+        return
     cases_df = pd.read_csv('simulation_output.csv')
 
     cases_df = cases_df[cases_df["Timestep"] > burnin]
@@ -148,6 +155,7 @@ def analyze_ccs():
         popt, pcov = curve_fit(sigmoid, np.log10(sorted_df["Population"]), sorted_df['Fraction_NonZero_New_Infections'], p0=initial_guess)
         sig_slope = popt[1]
     except Exception as ex:
+        print( "Exception fitting sigmoid curve to CCS data." )
         print( str( ex ) )
         sig_slope = -5
 
@@ -162,7 +170,7 @@ def analyze_ccs():
     return mean_fraction, median[1], sig_slope
 
 
-def analyze():
+def analyze( big_city_node=0 ):
     # Read the CSV file into a DataFrame
     raw_df = pd.read_csv("simulation_output.csv")
 
@@ -181,7 +189,7 @@ def analyze():
     average_new_infections_per_year = total_new_infections / num_years
 
     # Filter the DataFrame to include only rows where Node is 507 (London)
-    df_london = df[df["Node"] == 507]
+    df_london = df[df["Node"] == big_city_node]
 
     # Calculate the total number of new infections in London
     total_new_infections_london = df_london["New Infections"].sum()
@@ -193,14 +201,17 @@ def analyze():
         ccs_bigcity_mean, ccs_median, sig_slope = analyze_ccs()
     except Exception as ex:
         print( "analyze_ccs failed for some reason." )
+        print( str( ex ) )
         ccs_bigcity_mean = 1
         ccs_median = 0
         sig_slope = -1000
 
     # Create a DataFrame with the metric and its value
     try:
-        wpp = get_wavelet_power_peak()
+        wpp = get_wavelet_power_peak(big_city_node)
     except Exception as ex:
+        print( "Exception calculating period of peak (wavelet) power." )
+        print( str( ex ) )
         wpp = 0
     data = {
         "metric": [

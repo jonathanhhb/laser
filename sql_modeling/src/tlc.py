@@ -73,14 +73,17 @@ def run_simulation(ctx, csvwriter, num_timesteps, sm=-1, bi=-1, mf=-1):
             ctx = model.distribute_interventions( ctx, timestep )
 
         # Transmission is done, now migrate some. Only infected?
-        if timestep>settings.burnin_delay and settings.num_nodes>1:
+        if timestep>settings.burnin_delay and settings.num_nodes>1 and mf>0:
             ctx = model.migrate( ctx, timestep, migration_fraction=mf )
 
         # if we have had total fade-out, inject imports 
         if timestep>settings.burnin_delay and sum(counts["I"].values()) == 0 and settings.import_cases > 0 and timestep<1200:
             def divide_and_round(susceptibles):
                 for node, count in susceptibles.items():
-                    susceptibles[node] = round(count / 80)
+                    if len(settings.import_nodes)==0 or node in settings.import_nodes:
+                        susceptibles[node] = round(count / 80)
+                    else:
+                        susceptibles[node] = 0
                 return list(susceptibles.values())
             import_cases = np.array(divide_and_round( counts["S"] ), dtype=np.uint32)
             #print( f"ELIMINATION Detected: Reseeding: Injecting {import_cases} new cases." )
@@ -117,9 +120,11 @@ if __name__ == "__main__":
     runtime = timeit( runsim, number=1 )
     print( f"Execution time = {runtime}." )
 
+    """
     import post_proc
     try:
         post_proc.analyze()
     except Exception as ex:
         print( "There are parameters which might result in post proc not working. Continue and return null values." )
+    """
 

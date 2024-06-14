@@ -26,11 +26,11 @@ COPY model_numpy/eula.py model_numpy/
 COPY model_sql/eula.py model_sql/ 
 
 COPY modeled_pop.csv.gz .
-#COPY cbrs.csv .
 COPY fits.npy .
-COPY cbrs.csv .
 
 COPY post_proc.py .
+
+ENV HEADLESS true
 
 CMD ["python", "app.py"]
 

@@ -42,12 +42,10 @@ mkdir model_sql
 
 # Create symlinks for each file or directory in src_dir
 cp "$src_dir/report.py" .
-cp "$src_dir/sir_sql.py" .
 cp "$src_dir/makefile" .
 ln -sfn "$src_dir/utils" .
 cp "$src_dir/sir_numpy.py" .
 cp "$src_dir/model_numpy/eula.py" model_numpy/
-cp "$src_dir/model_sql/eula.py" model_sql/
 cp "$src_dir/sir_numpy_c.py" .
 cp "$src_dir/update_ages.cpp" .
 cp "$src_dir/tlc.py" .
@@ -68,10 +66,13 @@ if [[ -n $england_wales ]]; then
     wget https://packages.idmod.org:443/artifactory/idm-data/laser/cities.csv
     gunzip attraction_probabilities.csv.gz
     cp "$src_dir/demographics_settings_ew.py" ./demographics_settings.py
-    cp "$src_dir/../Dockerfile" ./Dockerfile
+    cp "$src_dir/../Dockerfile_ew" ./Dockerfile
 elif [[ -n $ccs ]]; then
+    cp "$src_dir/sir_sql.py" .
+    cp "$src_dir/model_sql/eula.py" model_sql/
     cp "$src_dir/demographics_settings_1node.py" ./demographics_settings.py
     cp "$src_dir/../Dockerfile_ccs" ./Dockerfile
+    sed -i 's/migration_fraction=/migration_fraction=0#/g' settings.py
     make
 fi
 

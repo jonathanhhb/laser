@@ -11,7 +11,8 @@ import pdb
 #url = 'http://10.24.14.27:5000/submit'
 #url = 'http://10.24.14.21:5000/submit'
 #url = 'http://172.19.0.2:5000/submit'
-url = 'http://10.24.49.70:5001/submit'
+url = "http://172.30.0.2:5000/submit"
+#url = 'http://10.24.49.70:5001/submit'
 
 
 # Load reference/target values from metrics_ref.csv
@@ -79,6 +80,7 @@ def simulate_disease_model(base_infectivity, migration_fraction, seasonal_multip
         parameters['base_infectivity'] = base_infectivity 
         parameters['migration_fraction'] = migration_fraction 
         parameters['seasonal_multiplier'] = seasonal_multiplier 
+        parameters['duration'] = 20
         print( parameters )
         response = requests.post(url, json=parameters, timeout=3600)
         print( response.content )

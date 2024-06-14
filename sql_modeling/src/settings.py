@@ -6,7 +6,7 @@ report_filename="simulation_output.csv"
 #duration = 10*365
 duration = 20*365
 
-report_start= 365*3
+report_start= 365*4
 base_infectivity = 1.48 # 4.42
 cbr=17.5 # needed for default even if not used
 births_file="births.csv"
@@ -26,6 +26,8 @@ fertility_interval=1 # 7
 ria_interval=700000
 burnin_delay=30 # 365*1
 import_cases=3000
+#import_nodes=[507]
+import_nodes=[]
 dont_import_after=365*4
 
 #import numpy as np

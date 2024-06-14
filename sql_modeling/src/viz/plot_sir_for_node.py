@@ -8,11 +8,16 @@ def plot_sir_curves(csv_file, node_id=0):
     # Filter data for the specified node
     node_data = df[df['Node'] == node_id]
 
+    fig, ax1 = plt.subplots(figsize=(10,6))
+
     # Plot SIR curves
-    #plt.plot(node_data['Timestep'], node_data['Susceptible'], label='Susceptible')
-    #plt.plot(node_data['Timestep'], node_data['Infected'], label='Infected')
-    #plt.plot(node_data['Timestep'], node_data['Recovered'], label='Recovered')
-    plt.plot(node_data['Timestep'], node_data['New Infections'], label='Incidence')
+    ax1.plot(node_data['Timestep'], node_data['Susceptible'], label='Susceptible')
+    ax1.plot(node_data['Timestep'], node_data['Infected'], label='Infected')
+    ax1.plot(node_data['Timestep'], node_data['New Infections'], label='Incidence')
+
+    ax2 = ax1.twinx()
+    ax2.plot(node_data['Timestep'], node_data['Recovered'], label='Recovered')
+    ax2.set_ylabel("Recovered count")
 
     # Set plot labels and title
     plt.xlabel('Timestamp')

@@ -238,6 +238,12 @@ def run_sim( base_infectivity, migration_fraction, seasonal_multiplier ):
         # Handle subprocess error (e.g., log the error, restart the subprocess)
         print(f"Subprocess error: {e}")
 
+    import post_proc
+    try:
+        post_proc.analyze()
+    except Exception as ex:
+        print( "There are parameters which might result in post proc not working. Continue and return null values." )
+
 def metrics_csv_to_json():
     import csv
     import json
