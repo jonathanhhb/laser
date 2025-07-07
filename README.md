@@ -2,54 +2,92 @@
 <img src="https://user-images.githubusercontent.com/10873335/283954768-97685a6d-7b86-4bba-a3e6-07ac22d5a2b3.png" alt="LASER logo" width="600px"/>
 </p>
 
+## Status
+
+[![documentation](https://readthedocs.org/projects/idmlaser/badge/?style=flat)](https://docs.idmod.org/projects/laser/en/latest/)
+
+![tests](https://github.com/InstituteforDiseaseModeling/laser/actions/workflows/github-actions.yml/badge.svg)
+
+[![package](https://img.shields.io/pypi/v/laser-core.svg)](https://pypi.org/project/laser-core/)
+![wheel](https://img.shields.io/pypi/wheel/laser-core.svg)
+![python versions](https://img.shields.io/pypi/pyversions/laser-core)
+![implementation](https://img.shields.io/pypi/implementation/laser-core.svg)
+![license](https://img.shields.io/pypi/l/laser-core.svg)
+
+![commits since v0.5.1](https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser/v0.5.1.svg)
+
+## Getting Started
+
+`laser-core` can be installed standalone with
+
+```bash
+python3 -m pip install laser-core
+```
+
+However, it may be more instructive to install one the disease packages built on `laser-core` to understand what `laser-core` provides and what is expected to be in a disease model. See [`laser-measles`](https://github.com/InstituteforDiseaseModeling/laser-measles).
+
+### Documentation
+
+Documentation can be found [here](https://docs.idmod.org/projects/laser/en/latest/) at the moment.
+
+### Development
+
+1. clone the `laser-core` repository with
+```bash
+git clone https://github.com/InstituteforDiseaseModeling/laser-core.git
+```
+2. install [`uv`](https://github.com/astral-sh/uv?tab=readme-ov-file#installation) _in your system [Python]_, i.e. _before_ creating and activating a virtual environment
+3. install `tox` as a tool in `uv` with the `tox-uv` plugin with
+```bash
+uv tool install tox --with tox-uv
+```
+4. change to the `laser-core` directory with
+```bash
+cd laser-core
+```
+5. create a virtual environment for development with
+```bash
+uv venv
+```
+6. activate the virtual environment with
+
+**Mac or Linux:**
+```bash
+source .venv/bin/activate
+```
+
+**Windows:**
+```batch
+.venv\bin\Activate
+```
+
+Now you can run tests in the `tests` directory or run the entire check+docs+test suite with ```tox```. Running ```tox``` will run several consistency checks, build documentation, run tests against the supported versions of Python, and create a code coverage report based on the test suite. Note that the first run of ```tox``` may take a few minutes (~5). Subsequent runs should be quicker depending on the speed of your machine and the test suite (~2 minutes). You can use ```tox``` to run tests against a single version of Python with, for example, ```tox -e py310```.
+
 ## Schedule
 
 ### First 30 Days (EOY 2023)
 
-- firm up team/stakeholders/advisory committee
-- enumerate necessary features for reproducing/supporting previous and in-progress modeling efforts
-  - measles (kmccarthy)
-  - malaria (cbever/pselvaraj)
-  - end-game/end-stage polio (¿kfrey?)
-- enumerate necessary features for outstanding questions and issues
+- [x] firm up team/stakeholders/advisory committee: **kmmcarthy, krosenfeld, clorton, jbloedow**
+- [x] enumerate necessary features for reproducing/supporting previous and in-progress modeling efforts
+  - [Required Model Features](https://github.com/InstituteforDiseaseModeling/laser/wiki/Required-Model-Features)
+- <strike>enumerate necessary features for outstanding questions and issues</strike>
 
 ### First 60 Days (January 31, 2024)
 
-- "paper search" / investigate potential existing solutions
-- capture development requirements
-  - tools for preparing data (demographics, networks, etc.)
-  - file formats
-  - select initial features
-    - spatial connectivity
-      - individual agent migration (genetics - vector _and_ parasite)
-      - NxN matrix connectivity, contagion transport
-      - multi-level (meso-scale?) connectivity (communities of communities)
-    - community transmission dynamics
-      - agents
-      - cohorts
-      - \*Sim
-      - stochastic compartmental
-      - ODEs
-      - emulator
-    - demographics
-      - urban/rural
-      - class/caste
-    - multiple independent populations/community (people + mosquitoes, people + dogs, etc.)
-    - ¿co-transmission? TB _and_ HIV
-    - non-disease vital dynamics
-  - visualization choices
+- [x] "paper search" / investigate potential existing solutions
 
 ### First 120 Days (February 29, 2024)
 
 - technical considerations
-  - single laptop
-  - single laptop w/Nvidia GPU
-  - multicore
-    - single machine
-    - large machine (cloud)
-    - beyond?
-  - Numpy
-  - NumPy + Numba
+  - [x] single laptop
+  - [x] single laptop w/Nvidia GPU
+  - [x] multicore
+    - [x] single machine
+    - [x] large machine (cloud)
+    - ¿beyond?
+  - [x] Numpy
+  - [x] NumPy + Numba
+  - [x] NumPy + Numba + C/C++
   - NumPy + Numba + CUDA
 
 ## Problem Space
@@ -62,9 +100,9 @@ Community size in a spatial model is also a consideration - what is the configur
 
 We need configurable characteristics of the individual communities which can vary, along with their interconnectedness, to capture additional heterogeneity.
 
-What _is_ the modeling of the individual communities? "Light-Agent" seems to limit us to an ABM, but we should consider cohorts of epidemiologically similar populations (polio >5, HIV <15, TB latents, etc.) as well as stochastic compartmental models.
+What _is_ the modeling of the individual communities? "Light-Agent" seems to limit us to an ABM, but we should consider cohorts of epidemiologically similar populations (polio >5, HIV <15, TB latents, etc.) as well as stochastic compartmental models (XLA - eXtremely Light Agents).
 
-Are the individual communities well-mixed or should we also provide for explicit networks at the local level?
+- [ ] Are the individual communities well-mixed or should we also provide for explicit networks at the local level?
 
 ## Technology
 
@@ -104,3 +142,11 @@ Are the individual communities well-mixed or should we also provide for explicit
 - "spatial" : How good are the individual community models? Good enough for non-spatial questions?
 - dynamic properties (e.g. GPU flu simulation)
 - ¿Ace/clorton-based state machines?
+
+> Superficial simplicity isn’t the goal of design. Some things are, by nature, complex. In such cases, you should aim for clarity rather than “simplicity.” Users will be better served if you strive to make complex systems more understandable and learnable than simply simple.
+
+-----
+
+## Disclaimer
+
+The code in this repository was developed by IDM and other collaborators to support our joint research on flexible agent-based modeling. We've made it publicly available under the MIT License to provide others with a better understanding of our research and an opportunity to build upon it for their own work. We make no representations that the code works as intended or that we will provide support, address issues that are found, or accept pull requests. You are welcome to create your own fork and modify the code to suit your own modeling needs as permitted under the MIT License.

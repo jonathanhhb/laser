@@ -15,8 +15,8 @@ Overview
     * - package
       - | |version| |wheel| |supported-versions| |supported-implementations|
         | |commits-since|
-.. |docs| image:: https://readthedocs.org/projects/laser/badge/?style=flat
-    :target: https://laser.readthedocs.io/
+.. |docs| image:: https://readthedocs.org/projects/idmlaser/badge/?style=flat
+    :target: https://docs.idmod.org/projects/laser/en/latest/
     :alt: Documentation Status
 
 .. |github-actions| image:: https://github.com/InstituteforDiseaseModeling/laser/actions/workflows/github-actions.yml/badge.svg
@@ -27,25 +27,25 @@ Overview
     :alt: Coverage Status
     :target: https://app.codecov.io/github/InstituteforDiseaseModeling/laser
 
-.. |version| image:: https://img.shields.io/pypi/v/idmlaser.svg
+.. |version| image:: https://img.shields.io/pypi/v/laser-core.svg
     :alt: PyPI Package latest release
-    :target: https://pypi.org/project/idmlaser
+    :target: https://pypi.org/project/laser-core/
 
-.. |wheel| image:: https://img.shields.io/pypi/wheel/idmlaser.svg
+.. |wheel| image:: https://img.shields.io/pypi/wheel/laser-core.svg
     :alt: PyPI Wheel
-    :target: https://pypi.org/project/idmlaser
+    :target: https://pypi.org/project/laser-core/
 
-.. |supported-versions| image:: https://img.shields.io/pypi/pyversions/idmlaser.svg
+.. |supported-versions| image:: https://img.shields.io/pypi/pyversions/laser-core.svg
     :alt: Supported versions
-    :target: https://pypi.org/project/idmlaser
+    :target: https://pypi.org/project/laser-core/
 
-.. |supported-implementations| image:: https://img.shields.io/pypi/implementation/idmlaser.svg
+.. |supported-implementations| image:: https://img.shields.io/pypi/implementation/laser-core.svg
     :alt: Supported implementations
-    :target: https://pypi.org/project/idmlaser
+    :target: https://pypi.org/project/laser-core/
 
-.. |commits-since| image:: https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser/v0.0.1.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/InstituteforDiseaseModeling/laser/v0.5.1.svg
     :alt: Commits since latest release
-    :target: https://github.com/InstituteforDiseaseModeling/laser/compare/v0.0.1...main
+    :target: https://github.com/InstituteforDiseaseModeling/laser/compare/v0.5.1...main
 
 
 
@@ -60,7 +60,7 @@ Installation
 
 ::
 
-    pip install idmlaser
+    pip install laser-core
 
 You can also install the in-development version with::
 
@@ -71,7 +71,7 @@ Documentation
 =============
 
 
-https://laser.readthedocs.io/
+https://docs.idmod.org/projects/laser/en/latest/
 
 
 Development

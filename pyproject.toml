@@ -1,7 +1,71 @@
-[build-system]
-requires = [
-    "setuptools>=30.3.0",
+[project]
+name = "laser-core"
+version = "0.5.1"
+authors = [
+  { name="Christopher Lorton", email="christopher.lorton@gatesfoundation.org" },
+  { name="Jonathan Bloedow", email="jonathan.bloedow@gatesfoundation.org" },
+  { name="Katherine Rosenfeld", email="katherine.rosenfeld@gatesfoundation.org"},
+  { name="Kevin McCarthy", email="kevin.mccarthy@gatesfoundation.org" },
 ]
+maintainers = [
+  { name="Christopher Lorton", email="christopher.lorton@gatesfoundation.org" },
+  { name="Jonathan Bloedow", email="jonathan.bloedow@gatesfoundation.org" },
+]
+description = "Core functionality for the Light Agent Spatial modeling for ERadication toolkit (LASER)."
+readme = "README.rst"
+license = {file = "LICENSE"}
+requires-python = ">=3.9,<3.13"
+keywords = ["spatial modeling", "disease eradication", "agent-based modeling"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    # "Programming Language :: Python :: 3.13",   # Not until Numba supports it
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = [
+    "click",  # ==8.1.7",
+    "numpy",
+    "numba",
+    "matplotlib",
+    "pandas",
+    "h5py"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "black",
+    "flake8",
+    "tox",
+    "uv"
+]
+docs = [
+    "sphinx>=1.3",
+    "sphinx-rtd-theme",
+    "furo",
+]
+test = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "scipy",
+    "uv",
+]
+
+[project.urls]
+Homepage = "https://github.com/InstituteforDiseaseModeling/laser"
+Issues = "https://github.com/InstituteforDiseaseModeling/laser/issues"
+Documentation = "https://docs.idmod.org/projects/laser/en/latest/"
+Changelog = "https://docs.idmod.org/projects/laser/en/latest/changelog.html"
+
+[build-system]
+requires = ["setuptools>=76.0"]
+build-backend = "setuptools.build_meta"
 
 [tool.ruff.per-file-ignores]
 "ci/*" = ["S"]
@@ -37,7 +101,7 @@ select = [
     "W", # pycodestyle warnings
 ]
 src = ["src", "tests"]
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.flake8-pytest-style]
 fixture-parentheses = false
@@ -49,4 +113,76 @@ force-single-line = true
 
 [tool.black]
 line-length = 140
-target-version = ["py38"]
+target-version = ["py39"]
+
+# sample here: https://coverage.readthedocs.io/en/latest/excluding.html
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == .__main__.:",
+    ]
+
+[tool.setuptools]
+packages = ["laser_core"]
+ext-modules = [
+  {name = "_extension", sources = ["src/laser_core/_extension.c"]}
+]
+
+[tool.setuptools.package-data]
+"tests" = ["data/*.csv"]
+
+[tool.bumpversion]
+current_version = "0.5.1"
+parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
+serialize = ["{major}.{minor}.{patch}"]
+search = "{current_version}"
+replace = "{new_version}"
+regex = false
+ignore_missing_version = false
+tag = true
+sign_tags = false
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+allow_dirty = false
+commit = true
+message = "Bump version: {current_version} → {new_version}"
+commit_args = ""
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = "/v{current_version}.svg"
+replace = "/v{new_version}.svg"
+
+[[tool.bumpversion.files]]
+filename = "README.md"
+search = "since v{current_version}"
+replace = "since v{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "README.rst"
+search = "/v{current_version}.svg"
+replace = "/v{new_version}.svg"
+
+[[tool.bumpversion.files]]
+filename = "README.rst"
+search = "/v{current_version}...main"
+replace = "/v{new_version}...main"
+
+[[tool.bumpversion.files]]
+filename = "docs/conf.py"
+search = 'version = release = "{current_version}"'
+replace = 'version = release = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/laser_core/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = ".cookiecutterrc"
+search = 'version: "{current_version}"'
+replace = 'version: "{new_version}"'

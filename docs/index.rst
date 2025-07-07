@@ -8,7 +8,17 @@ Contents
    readme
    installation
    usage
-   reference/index
+   architecture
+   source/modules
+   migration
+   pyramids
+   kmestimator
+   example
+   vdexample
+   spatialexample
+   eula
+   performance
+   calibration
    contributing
    authors
    changelog
