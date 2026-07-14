@@ -620,9 +620,8 @@ Kubernetes Deployment Patterns
    coercion in the application's connection-URL builder catches
    the same class of bug if the flag is ever forgotten.
 
-3. **Verify pod placement on every first deployment.** A
-   one-line ``kubectl get pods ... -o
-   jsonpath='{.spec.nodeName}'`` plus a lookup of the node's pool
+3. **Verify pod placement on every first deployment.** A one-line
+   ``kubectl get pods ... -o jsonpath='{.spec.nodeName}'`` plus a lookup of the node's pool
    label is the cheapest possible verification that your nodeSelector
    is doing its job. Run it on the first deploy after any
    manifest change.
@@ -640,12 +639,12 @@ Container Build Patterns
 
    .. code-block:: dockerfile
 
-       # On the host, before docker build:
-       python -m pip wheel --no-deps --wheel-dir /tmp/whl <pkg-root>
+        # On the host, before docker build (place wheels under the build context):
+        mkdir -p wheels && python -m pip wheel --no-deps --wheel-dir wheels <pkg-root>
 
-       # In the Dockerfile:
-       COPY /tmp/whl/*.whl /wheels/
-       RUN pip install /wheels/*.whl
+        # In the Dockerfile:
+        COPY wheels/*.whl /wheels/
+        RUN pip install /wheels/*.whl
 
    Build context drops from gigabytes to under 10 MB; image build
    time drops correspondingly; the image contains exactly what you
@@ -746,8 +745,7 @@ against a million-trial database.
       ``optuna studies`` CLI that wraps it — both join against
       ``trial_params`` and ``trial_values`` for every study, and
       can hang for tens of minutes. Replace any liveness probe
-      based on ``optuna studies`` with a ``python -c
-      'optuna.load_study(name=..., storage=...)'`` that raises
+      based on ``optuna studies`` with ``python -c 'import optuna; optuna.load_study(study_name="...", storage="...")'``, which raises
       ``KeyError`` if the study does not exist.
     - ``len(study.trials)`` and ``study.trials_dataframe()`` —
       fetch all trials and parameters. Avoid in worker code; use
@@ -904,7 +902,7 @@ Identifiability Workflow
 
     .. math::
 
-        \mathrm{S/N} = \frac{\max\_\mathrm{grid}\,L - \min\_\mathrm{grid}\,L}{\sigma_L(\text{at centre across seeds})}
+        \mathrm{S/N} = \frac{\max_{\mathrm{grid}}\,L - \min_{\mathrm{grid}}\,L}{\sigma_L(\text{at centre across seeds})}
 
     Three outcomes are useful:
 
@@ -963,7 +961,7 @@ maps to one of the patterns above.
 - **Data paths:** are application data assets staged at paths the
   code actually reads inside the container?
 - **Optuna API discipline:** does my worker use
-  ``optuna.load_study(name)`` rather than
+  ``optuna.load_study(study_name=...)`` rather than
   ``optuna.get_all_study_summaries()`` to determine whether a study
   exists? Does any call in the worker hot path fetch all trials?
 - **Optuna version parity:** does the Optuna version on my
